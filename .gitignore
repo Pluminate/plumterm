@@ -1,0 +1,7 @@
+.DS_Store
+*.log
+*.pem
+.env
+.env.local
+/build/
+core/target/
