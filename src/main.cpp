@@ -2,6 +2,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QPixmap>
+#include <QStyleHints>
 #include <QTimer>
 #include "CoreBridge.h"
 #include "MainWindow.h"
@@ -12,6 +13,9 @@
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("PlumTerm");
+#ifdef Q_OS_WIN
+    QApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);  // title bars follow this, not the stylesheet
+#endif
     MenuStyle::installGlobalHook();
 
     auto *w = new MainWindow();
