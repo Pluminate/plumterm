@@ -56,6 +56,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         "QMainWindow { background-color: #000000; }"
         "QSplitter::handle { background-color: #222222; }"
         "QSplitter::handle:hover { background-color: #38bdf8; }"
+        // Only seen outside macOS, where the menu bar is part of the window.
+        "QMenuBar { background-color: #111111; color: #e5e5e5; }"
+        "QMenuBar::item { background: transparent; padding: 4px 10px; }"
+        "QMenuBar::item:selected { background-color: #2a2a2a; }"
     ));
 
     auto *central = new QWidget(this);
