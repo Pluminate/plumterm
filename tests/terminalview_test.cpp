@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QWheelEvent>
@@ -259,12 +260,12 @@ private slots:
         img.fill(Qt::transparent);
         menu.render(&img);
         QVERIFY(!img.isNull());
-        img.save(QStringLiteral("/tmp/menu_render.png"));
+        img.save(QDir::temp().filePath(QStringLiteral("menu_render.png")));
 
         menu.setActiveAction(splitRightAct);
         img.fill(Qt::transparent);
         menu.render(&img);
-        img.save(QStringLiteral("/tmp/menu_render_selected.png"));
+        img.save(QDir::temp().filePath(QStringLiteral("menu_render_selected.png")));
 
         // Render Tab Menu
         QMenu tabMenu;
@@ -288,7 +289,7 @@ private slots:
         QImage tImg(ts, QImage::Format_ARGB32_Premultiplied);
         tImg.fill(Qt::transparent);
         tabMenu.render(&tImg);
-        tImg.save(QStringLiteral("/tmp/tab_menu_render.png"));
+        tImg.save(QDir::temp().filePath(QStringLiteral("tab_menu_render.png")));
     }
 };
 

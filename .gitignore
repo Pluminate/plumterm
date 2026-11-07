@@ -5,3 +5,9 @@
 .env.local
 /build/
 core/target/
+.claude/
+.idea/
+.roadmap/
+PLAN.md
+test-commit.md
+test-file.md

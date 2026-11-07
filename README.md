@@ -98,6 +98,9 @@ This will:
 
 ## License
 
-Copyright (c) 2024-2026 Pluminate. All rights reserved.
+PlumTerm is **source-available**, not open source.
 
-TerminalPro is proprietary software, free to use but not open source. See the [LICENSE](LICENSE) file for terms.
+- **Source code** (this repository): [PolyForm Strict License 1.0.0](LICENSE). You may read the code and use it for noncommercial purposes, but you may not modify it, redistribute it, or use it commercially.
+- **Compiled app** (official releases): free to use under the [End-User Terms](EULA.md).
+
+Copyright (c) 2024-2026 Pluminate. "PlumTerm" and "Pluminate" are names of the publisher; this license does not grant any right to use them.
