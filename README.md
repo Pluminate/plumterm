@@ -2,7 +2,7 @@
 
 ![PlumTerm](PlumTerm.png)
 
-A modern, tabbed terminal application built with Electron, React, and node-pty.
+A modern, tabbed terminal application built with Qt 6 and Rust.
 
 ## Features
 - **Tabbed Interface:** Multiple terminal sessions in one window.
@@ -19,82 +19,36 @@ A modern, tabbed terminal application built with Electron, React, and node-pty.
 - **AI Commands:** Run AI-powered commands from within the terminal to assist with your workflow.
 - **Background Commands:** Run long-running commands in the background and get notified when they finish.
 
-## Installation (Linux)
+## Installation
+
+Prebuilt packages are not published yet, so PlumTerm is currently installed from source.
+
+### macOS
 
 ```bash
-sudo snap install plumterm --classic
+brew install qt cmake ninja
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # if you don't have Rust yet
+./install-local.sh
 ```
 
-Classic confinement is required so the terminal can run your shell and tools on the host.
-
-## Installation (macOS)
-
-### From Release
-1. Download the latest `.dmg` or `.zip` from the [Releases](https://github.com/Pluminate/plumterm/releases) page.
-2. Open the downloaded folder/volume.
-3. **Double-click `install.sh`** (or run `bash install.sh` in your terminal).
-
-### From Source
-```bash
-npm run install-app
-```
-
-### 🚀 What the `install.sh` does:
-*   Moves the app to your `/Applications` folder automatically.
-*   Fixes the "App is damaged" error by setting it as a trusted application.
-*   Opens the app for you immediately.
-
----
-
-### Manual Fix (Alternative)
-If you prefer to drag-and-drop manually and see the "App is damaged" error, run this in your terminal:
-
-```bash
-xattr -cr /Applications/PlumTerm.app
-```
+This builds the app and installs `PlumTerm.app` into `/Applications`. To install somewhere else, pass the folder: `./install-local.sh ~/Applications`.
 
 ## Development
 
 ### Prerequisites
-- Node.js (v18+)
-- npm
+- Qt 6 (Widgets, Concurrent, Test, Svg)
+- CMake and Ninja
+- Rust (cargo)
 
-### Setup
+### Build, test and run
 ```bash
-# Install dependencies
-npm install
-
-# Start development server (hot reload)
-npm start
-
-# Build the frontend
-npm run build
+cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=$(brew --prefix qt)
+cmake --build build
+ctest --test-dir build
+./build/plumterm
 ```
 
-### Development Commands
-- `npm start` - Start dev server with Electron in watch mode
-- `npm run dev` - Alternative dev command with concurrent build and server
-- `npm run build` - Build frontend assets
-
-## Creating a Release
-To create a new versioned release and upload artifacts to GitHub:
-
-```bash
-# Auto-increment patch (1.0.x -> 1.0.x+1)
-./release.sh patch "Your release notes here"
-
-# Auto-increment minor (1.x.0 -> 1.x+1.0)
-./release.sh minor "New feature release"
-
-# Or use a specific version
-./release.sh 1.1.0 "Major stable version"
-```
-
-This will:
-1. Update `package.json` version.
-2. Update `CHANGELOG.md`.
-3. Create a Git tag and push to GitHub.
-4. Trigger GitHub Actions to build and upload the DMG/ZIP.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised.
 
 ## License
 
