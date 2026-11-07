@@ -74,6 +74,8 @@ private slots:
     void ctrlCCopiesASelectionThenInterrupts() {
         TerminalView v;
         sized(v, 400, 200);
+        v.start(QDir::tempPath());  // with no shell running, C means "restart" instead
+        QVERIFY(v.isRunning());
         v.feedOutput("copy me\r\n");
         v.selectAllText();
         QApplication::clipboard()->clear();

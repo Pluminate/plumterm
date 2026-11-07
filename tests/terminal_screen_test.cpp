@@ -100,7 +100,11 @@ private slots:
         s.feed("\x1b]7;file://host/Users/me/My%20Dir\x07");
         s.feed("\x1b]1;ignored\x07\x1b]8;;http://x\x07");
         QCOMPARE(titles, (QStringList{"hello world", "second"}));
+#ifdef Q_OS_WIN
+        QCOMPARE(cwds, (QStringList{"//host/Users/me/My Dir"}));  // a host means a network path here
+#else
         QCOMPARE(cwds, (QStringList{"/Users/me/My Dir"}));
+#endif
         s.feed("ok");                                                            // parser recovered
         QCOMPARE(s.extractText(QPoint(0, 0), QPoint(20, 0)), QStringLiteral("ok"));
     }
