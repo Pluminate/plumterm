@@ -51,7 +51,7 @@ pub extern "C" fn tp_is_dangerous(cmd: *const c_char) -> i32 { is_dangerous(&cst
 mod tests {
     use super::*;
 
-    // Ported from legacy-electron/tests/terminal.test.js
+    // Ported from the earlier Electron app tests
     #[test]
     fn valid_command() { assert!(verify_command("ls -la")); }
     #[test]

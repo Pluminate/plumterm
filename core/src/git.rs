@@ -1,4 +1,4 @@
-//! Git operations by shelling out to `git` / `gh`, with the same commands as legacy-electron/main.js
+//! Git operations by shelling out to `git` / `gh`, with the same commands as the earlier Electron app
 //! (arguments are passed as argv, never through a shell). Results cross the ABI as JSON.
 
 use crate::proc::{run_env, Out};

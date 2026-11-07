@@ -1,7 +1,7 @@
 # PlumTerm: architecture
 
 Native macOS terminal: a Rust core (`core/`) behind a C ABI plus a Qt 6 Widgets shell (`src/`).
-Replaces the Electron/React app, kept in `legacy-electron/` until feature parity (then removed).
+Replaces the earlier Electron/React app, which has been removed.
 Modeled on ~/Work/pluminate. Plan: see the approved migration plan.
 
 ```
