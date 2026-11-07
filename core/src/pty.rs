@@ -230,7 +230,7 @@ mod tests {
         }
         extern "C" fn on_exit(_: *mut c_void, _: u64) {}
         let (tx, rx) = channel::<Vec<u8>>();
-        let tx = Box::new(tx);
+        let tx = Box::leak(Box::new(tx)); // the reader thread can outlive this test once it kills the shell
         let dir = crate::store::test_dir("osc7 folder");
         let id = spawn(dir.to_str().unwrap(), 200, 24, on_data, on_exit, &*tx as *const _ as *mut _).expect("spawn");
         write(id, b"cd sub-does-not-exist; cd ..\r");

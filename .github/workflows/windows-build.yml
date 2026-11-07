@@ -101,3 +101,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir build --output-on-failure --timeout 300
           exit $LASTEXITCODE
+
+      - name: Show Qt test details
+        if: failure()
+        run: |
+          $env:Path = "$env:QT_PATH\bin;$env:Path"
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          foreach ($test in 'terminal_screen_test', 'terminalview_test') {
+            $log = "$env:RUNNER_TEMP\$test.txt"
+            $run = Start-Process "build\$test.exe" -ArgumentList '-o', "$log,txt" -PassThru
+            $null = $run.Handle
+            if (-not $run.WaitForExit(120000)) { Stop-Process $run -Force; "$test timed out" }
+            "=== $test exit code $($run.ExitCode)"
+            if (Test-Path $log) { Get-Content $log | Select-String -Pattern 'FAIL!|Totals|Loc:|Actual|Expected|QFATAL|QWARN' } else { 'no log written' }
+          }
