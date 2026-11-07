@@ -2,6 +2,19 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+case "$(uname -s)" in
+  Darwin) ;;
+  MINGW*|MSYS*|CYGWIN*)
+    # Git Bash and friends: hand over to the native Windows installer.
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$ROOT/install-local.ps1")" "$@"
+    ;;
+  *)
+    echo "error: this script installs on macOS and Windows; $(uname -s) is not supported yet." >&2
+    exit 1
+    ;;
+esac
+
 BUILD_DIR="$ROOT/build"
 APP_NAME="PlumTerm.app"
 DEST_DIR="${1:-/Applications}"

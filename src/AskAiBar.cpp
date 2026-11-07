@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include "CoreBridge.h"
 #include "TerminalView.h"
+#include "Platform.h"
 
 AskAiBar::AskAiBar(TerminalView *view, QWidget *parent)
     : QFrame(parent), m_view(view) {
@@ -125,7 +126,7 @@ void AskAiBar::submitPrompt() {
     const QString token = s.value(QStringLiteral("geminiToken")).toString().trimmed();
     if (token.isEmpty()) {
         m_suggestionBox->setVisible(true);
-        m_cmdLabel->setText(QStringLiteral("Error: Gemini Token is not set in Settings (Cmd+,)."));
+        m_cmdLabel->setText(Platform::hint(QStringLiteral("Error: Gemini Token is not set in Settings (Cmd+,).")));
         m_statusLabel->setText(QStringLiteral("<span style=\"color: #ef4444;\">Please add your Gemini API key in Settings.</span>"));
         m_pasteBtn->setEnabled(false);
         m_runBtn->setEnabled(false);

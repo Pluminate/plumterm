@@ -17,6 +17,7 @@
 #include "CommitDialog.h"
 #include "DiffViewerDialog.h"
 #include "MenuStyle.h"
+#include "Platform.h"
 
 namespace {
 
@@ -97,7 +98,7 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
 
     m_aiBtn = new QToolButton(this);
     m_aiBtn->setText(QStringLiteral("✨"));
-    m_aiBtn->setToolTip(QStringLiteral("Ask AI (Cmd+G)"));
+    m_aiBtn->setToolTip(Platform::hint(QStringLiteral("Ask AI (Cmd+G)")));
     m_aiBtn->setAutoRaise(true);
     m_aiBtn->setStyleSheet(QStringLiteral(
         "QToolButton { color: #888888; font-size: 12px; border: none; padding: 2px 4px; }"
@@ -109,7 +110,7 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     m_taskBtn = new QToolButton(this);
     m_taskBtn->setIcon(createTerminalConsoleIcon());
     m_taskBtn->setIconSize(QSize(18, 18));
-    m_taskBtn->setToolTip(QStringLiteral("Run Background Task (Cmd+B)"));
+    m_taskBtn->setToolTip(Platform::hint(QStringLiteral("Run Background Task (Cmd+B)")));
     m_taskBtn->setAutoRaise(true);
     m_taskBtn->setCursor(Qt::PointingHandCursor);
     m_taskBtn->setStyleSheet(QStringLiteral(
@@ -128,7 +129,7 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
 
     m_runBtn = new QToolButton(this);
     m_runBtn->setText(QStringLiteral("▶"));
-    m_runBtn->setToolTip(QStringLiteral("Run (Cmd+R) · Right-click to configure"));
+    m_runBtn->setToolTip(Platform::hint(QStringLiteral("Run (Cmd+R) · Right-click to configure")));
     m_runBtn->setAutoRaise(true);
     m_runBtn->setCursor(Qt::PointingHandCursor);
     m_runBtn->setStyleSheet(QStringLiteral(
@@ -309,15 +310,15 @@ void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {
     QMenu menu(this);
     MenuStyle::apply(&menu, true);
 
-    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), QStringLiteral("Split Right\t⌘⇧R"));
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), Platform::menuText(QStringLiteral("Split Right\t⌘⇧R")));
     connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
 
-    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), QStringLiteral("Split Down\t⌘⇧D"));
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), Platform::menuText(QStringLiteral("Split Down\t⌘⇧D")));
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.addSeparator();
 
-    auto *closeAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), QStringLiteral("Close Pane\t⌘W"));
+    auto *closeAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), Platform::menuText(QStringLiteral("Close Pane\t⌘W")));
     connect(closeAct, &QAction::triggered, this, &PaneHeader::closeRequested);
 
     menu.exec(e->globalPos());
@@ -329,12 +330,12 @@ void PaneHeader::showFolderMenu(const QPoint &globalPos) {
 
     auto *copyPath = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), QStringLiteral("Copy Path"));
     connect(copyPath, &QAction::triggered, this, [this] {
-        QApplication::clipboard()->setText(m_lastCwd);
+        QApplication::clipboard()->setText(QDir::toNativeSeparators(m_lastCwd));
     });
 
     menu.addSeparator();
 
-    auto *openFinder = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFinder, true), QStringLiteral("Open in Finder"));
+    auto *openFinder = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFinder, true), Platform::openInFileManagerLabel());
     connect(openFinder, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("finder"), m_lastCwd);
     });

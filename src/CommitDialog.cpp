@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 #include "CoreBridge.h"
 #include "DiffViewerDialog.h"
+#include "Platform.h"
 
 CommitDialog::CommitDialog(const QString &cwd, QWidget *parent)
     : QDialog(parent), m_cwd(cwd) {
@@ -146,7 +147,7 @@ void CommitDialog::generateAiMessage() {
     const auto s = CoreBridge::settings().toObject();
     const QString token = s.value(QStringLiteral("geminiToken")).toString().trimmed();
     if (token.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("AI Commit"), QStringLiteral("Gemini API key is not configured in Settings (Cmd+,)."));
+        QMessageBox::warning(this, QStringLiteral("AI Commit"), Platform::hint(QStringLiteral("Gemini API key is not configured in Settings (Cmd+,).")));
         return;
     }
 

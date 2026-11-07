@@ -1,0 +1,98 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main, windows-support]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: windows-11-arm
+            rust_host: aarch64-pc-windows-msvc
+            qt_host: windows_arm64
+            qt_arch: win64_msvc2022_arm64
+            qt_dir: msvc2022_arm64
+          - arch: x64
+            runner: windows-2022
+            rust_host: x86_64-pc-windows-msvc
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            qt_dir: msvc2022_64
+    env:
+      QT_PATH: C:\Qt\6.11.3\${{ matrix.qt_dir }}
+    defaults:
+      run:
+        shell: powershell  # Windows PowerShell 5.1, the version install-local.ps1 has to work on
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt and Ninja
+        run: |
+          pip install aqtinstall ninja
+          aqt install-qt ${{ matrix.qt_host }} desktop 6.11.3 ${{ matrix.qt_arch }} --outputdir C:\Qt --archives qtbase qtsvg
+
+      - name: Install Rust
+        run: |
+          Invoke-WebRequest https://static.rust-lang.org/rustup/dist/${{ matrix.rust_host }}/rustup-init.exe -OutFile "$env:RUNNER_TEMP\rustup-init.exe"
+          & "$env:RUNNER_TEMP\rustup-init.exe" -y --profile minimal --default-toolchain stable
+          "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+
+      - name: Build and install with install-local.ps1
+        run: .\install-local.ps1 -NoLaunch -QtDir $env:QT_PATH -InstallDir "$env:RUNNER_TEMP\PlumTerm"
+
+      - name: Package
+        run: |
+          $dist = 'dist\PlumTerm-windows-${{ matrix.arch }}'
+          New-Item -ItemType Directory $dist | Out-Null
+          Copy-Item build\bundle "$dist\app" -Recurse
+          Copy-Item install-local.ps1 $dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlumTerm-windows-${{ matrix.arch }}
+          path: dist/PlumTerm-windows-${{ matrix.arch }}
+          if-no-files-found: error
+
+      - name: Start the installed app with no Qt on PATH
+        run: |
+          $env:TP_HEADLESS_EXIT = '1'
+          $app = Start-Process "$env:RUNNER_TEMP\PlumTerm\plumterm.exe" -PassThru -Wait
+          if ($app.ExitCode -ne 0) { throw "plumterm.exe exited with $($app.ExitCode)" }
+
+      - name: Reinstall from the bundle, then uninstall
+        run: |
+          $dir = "$env:RUNNER_TEMP\PlumTerm"
+          .\install-local.ps1 -NoLaunch -BundleDir build\bundle -InstallDir $dir
+          if (-not (Test-Path "$dir\bin\plumterm.cmd")) { throw 'Bundle install is missing the plumterm command.' }
+          .\install-local.ps1 -Uninstall -InstallDir $dir
+          if (Test-Path $dir) { throw 'Uninstall left the app behind.' }
+
+      - name: Build and run the tests
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -property installationPath
+          foreach ($line in (& cmd.exe /c "`"$vs\VC\Auxiliary\Build\vcvarsall.bat`" ${{ matrix.arch }} >nul && set")) {
+            $name, $value = $line -split '=', 2
+            if ($name -and $null -ne $value) { Set-Item "env:$name" $value }
+          }
+          $env:Path = "$env:QT_PATH\bin;$env:Path"
+          cmake --build build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir build --output-on-failure --timeout 300
+          exit $LASTEXITCODE

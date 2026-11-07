@@ -3,6 +3,12 @@
 use std::ffi::{c_char, CStr, CString};
 use std::path::PathBuf;
 
+/// The user's home folder (`USERPROFILE` on Windows, where `HOME` is normally unset).
+pub fn home_dir() -> PathBuf {
+    let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    PathBuf::from(std::env::var(var).unwrap_or_else(|_| ".".into()))
+}
+
 /// Directory holding settings.json / session.json.
 /// `TP_DATA_DIR` overrides (used by tests). Otherwise reuse the Electron app's folder when it
 /// already holds data, so existing settings and sessions carry over.
@@ -10,11 +16,13 @@ pub fn data_dir() -> PathBuf {
     if let Ok(d) = std::env::var("TP_DATA_DIR") {
         if !d.is_empty() { return PathBuf::from(d); }
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    let base = if cfg!(target_os = "macos") {
-        PathBuf::from(home).join("Library/Application Support")
+    let home = home_dir();
+    let base = if cfg!(windows) {
+        std::env::var("APPDATA").map(PathBuf::from).unwrap_or_else(|_| home.join("AppData").join("Roaming"))
+    } else if cfg!(target_os = "macos") {
+        home.join("Library/Application Support")
     } else {
-        std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(home).join(".config"))
+        std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| home.join(".config"))
     };
     for name in ["PlumTerm", "TerminalPro", "terminal"] {
         let p = base.join(name);

@@ -27,20 +27,53 @@ fn sessions() -> &'static Mutex<HashMap<u64, Session>> {
 struct User(*mut c_void);
 unsafe impl Send for User {}
 
-fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| {
-        if cfg!(windows) { "powershell.exe".into() } else { "/bin/sh".into() }
-    })
+#[cfg(not(windows))]
+fn shell_command() -> CommandBuilder {
+    let mut cmd = CommandBuilder::new(std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into()));
+    cmd.arg("-l"); // login shell: GUI-launched apps otherwise miss the user's PATH
+    cmd
+}
+
+// `Set-Location` does not change PowerShell's process directory, so the OS cannot tell us the
+// current folder. Wrap the user's prompt (their profile has already run) to report it as OSC 7.
+#[cfg(windows)]
+const REPORT_CWD: &str = "$global:__plumPrompt = $function:prompt; function global:prompt { \
+    $l = Get-Location; \
+    if ($l.Provider.Name -eq 'FileSystem') { \
+        [Console]::Write([char]27 + ']7;' + ([Uri]$l.ProviderPath).AbsoluteUri + [char]7) \
+    }; \
+    & $global:__plumPrompt }";
+
+#[cfg(windows)]
+fn shell_command() -> CommandBuilder {
+    let mut cmd = CommandBuilder::new(crate::proc::default_shell());
+    cmd.args(["-NoLogo", "-NoExit", "-Command", REPORT_CWD]);
+    cmd
+}
+
+// ConPTY keeps its output pipe open after the shell exits, so the reader never sees EOF. Closing
+// the pseudo console once the shell is gone ends the reader, which then reports the exit.
+#[cfg(windows)]
+fn close_when_shell_exits(id: u64) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let exited = match sessions().lock().unwrap().get_mut(&id) {
+            None => return, // already killed
+            Some(s) => !matches!(s.child.try_wait(), Ok(None)),
+        };
+        if exited {
+            let session = sessions().lock().unwrap().remove(&id);
+            drop(session); // outside the lock: closing a pseudo console can block
+            return;
+        }
+    });
 }
 
 pub fn spawn(cwd: &str, cols: u16, rows: u16, on_data: DataCb, on_exit: ExitCb, user: *mut c_void) -> Option<u64> {
     let pair = native_pty_system()
         .openpty(PtySize { rows: rows.max(1), cols: cols.max(1), pixel_width: 0, pixel_height: 0 })
         .ok()?;
-    let mut cmd = CommandBuilder::new(default_shell());
-    if !cfg!(windows) {
-        cmd.arg("-l"); // login shell: GUI-launched apps otherwise miss the user's PATH
-    }
+    let mut cmd = shell_command();
     cmd.cwd(cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
@@ -50,6 +83,8 @@ pub fn spawn(cwd: &str, cols: u16, rows: u16, on_data: DataCb, on_exit: ExitCb, 
     let writer = pair.master.take_writer().ok()?;
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     sessions().lock().unwrap().insert(id, Session { master: pair.master, writer, child });
+    #[cfg(windows)]
+    close_when_shell_exits(id);
 
     let user = User(user);
     std::thread::spawn(move || {
@@ -104,7 +139,8 @@ fn process_cwd(pid: u32) -> Option<String> {
 fn process_cwd(_pid: u32) -> Option<String> { None }
 
 pub fn kill(id: u64) {
-    if let Some(mut s) = sessions().lock().unwrap().remove(&id) {
+    let session = sessions().lock().unwrap().remove(&id);
+    if let Some(mut s) = session {
         let _ = s.child.kill();
     }
 }
@@ -156,8 +192,10 @@ mod tests {
         }
         let (tx, rx) = channel::<Option<Vec<u8>>>();
         let tx = Box::new(tx);
-        let id = spawn("/tmp", 80, 24, on_data, on_exit, &*tx as *const _ as *mut _).expect("spawn");
-        write(id, b"echo pl-marker-$((20+22)); exit\n");
+        let tmp = std::env::temp_dir();
+        let id = spawn(tmp.to_str().unwrap(), 80, 24, on_data, on_exit, &*tx as *const _ as *mut _).expect("spawn");
+        let script: &[u8] = if cfg!(windows) { b"echo pl-marker-$(20+22); exit\r" } else { b"echo pl-marker-$((20+22)); exit\n" };
+        write(id, script);
         let mut out = String::new();
         while let Ok(m) = rx.recv_timeout(std::time::Duration::from_secs(10)) {
             match m { Some(b) => out.push_str(&String::from_utf8_lossy(&b)), None => break }
@@ -165,6 +203,40 @@ mod tests {
         assert!(out.contains("pl-marker-42"), "output was: {out}");
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn prompt_reports_cwd_as_osc7_and_follows_cd() {
+        use std::sync::mpsc::{channel, Sender};
+        extern "C" fn on_data(u: *mut c_void, _id: u64, d: *const u8, n: usize) {
+            let tx = unsafe { &*(u as *const Sender<Vec<u8>>) };
+            let _ = tx.send(unsafe { std::slice::from_raw_parts(d, n) }.to_vec());
+        }
+        extern "C" fn on_exit(_: *mut c_void, _: u64) {}
+        let (tx, rx) = channel::<Vec<u8>>();
+        let tx = Box::new(tx);
+        let dir = crate::store::test_dir("osc7 folder");
+        let id = spawn(dir.to_str().unwrap(), 200, 24, on_data, on_exit, &*tx as *const _ as *mut _).expect("spawn");
+        write(id, b"cd sub-does-not-exist; cd ..\r");
+        let parent = dir.parent().unwrap().file_name().unwrap().to_str().unwrap().to_string();
+        let mut out = String::new();
+        let want_start = "\x1b]7;file:///";
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        // Started in "osc7 folder" (percent-encoded), then `cd ..` must be reported too.
+        while std::time::Instant::now() < deadline {
+            if let Ok(b) = rx.recv_timeout(std::time::Duration::from_millis(250)) {
+                out.push_str(&String::from_utf8_lossy(&b));
+            }
+            let reports: Vec<&str> = out.split(want_start).skip(1).collect();
+            if reports.iter().any(|r| r.contains("osc7%20folder")) && reports.iter().any(|r| r.split('\x07').next().unwrap().ends_with(&parent)) {
+                kill(id);
+                return;
+            }
+        }
+        kill(id);
+        panic!("cwd reports missing; output was: {out:?}");
+    }
+
+    #[cfg(unix)]
     #[test]
     fn reports_shell_cwd() {
         extern "C" fn nop_data(_: *mut c_void, _: u64, _: *const u8, _: usize) {}

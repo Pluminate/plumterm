@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QStackedLayout>
 #include "MenuStyle.h"
+#include "Platform.h"
 
 TabItem::TabItem(int id, const QString &title, QWidget *parent)
     : QFrame(parent), m_id(id), m_title(title) {
@@ -129,7 +130,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
 
     m_addBtn = new QToolButton(this);
     m_addBtn->setText(QStringLiteral("+"));
-    m_addBtn->setToolTip(QStringLiteral("New tab (Cmd+T)"));
+    m_addBtn->setToolTip(Platform::hint(QStringLiteral("New tab (Cmd+T)")));
     m_addBtn->setAutoRaise(true);
     m_addBtn->setFixedSize(28, 28);
     m_addBtn->setStyleSheet(QStringLiteral(
@@ -155,7 +156,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
 
     m_settingsBtn = new QToolButton(this);
     m_settingsBtn->setText(QStringLiteral("⚙"));
-    m_settingsBtn->setToolTip(QStringLiteral("Settings (Cmd+,)"));
+    m_settingsBtn->setToolTip(Platform::hint(QStringLiteral("Settings (Cmd+,)")));
     m_settingsBtn->setAutoRaise(true);
     m_settingsBtn->setFixedSize(28, 28);
     m_settingsBtn->setStyleSheet(QStringLiteral(
@@ -242,10 +243,10 @@ void TabBar::showTabMenu(int id, const QPoint &globalPos) {
     QMenu menu(this);
     MenuStyle::apply(&menu, true);
 
-    auto *newTabAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, &TabBar::newTabRequested);
+    auto *newTabAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), Platform::menuText(tr("New Tab\t⌘T")), this, &TabBar::newTabRequested);
     Q_UNUSED(newTabAct);
 
-    auto *newWinAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, &TabBar::newWindowRequested);
+    auto *newWinAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), Platform::menuText(tr("New Window\t⌘N")), this, &TabBar::newWindowRequested);
     Q_UNUSED(newWinAct);
 
     if (id > 0) {
@@ -263,7 +264,7 @@ void TabBar::showTabMenu(int id, const QPoint &globalPos) {
     menu.addSeparator();
 
     if (id > 0) {
-        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Tab\t⌘W"), this, [this, id] {
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), Platform::menuText(tr("Close Tab\t⌘W")), this, [this, id] {
             emit tabCloseRequested(id);
         });
 
@@ -277,11 +278,11 @@ void TabBar::showTabMenu(int id, const QPoint &globalPos) {
 
     menu.addSeparator();
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] {
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), Platform::menuText(tr("Split Right\t⌘⇧R")), this, [this] {
         emit splitRequested(true);
     });
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] {
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), Platform::menuText(tr("Split Down\t⌘⇧D")), this, [this] {
         emit splitRequested(false);
     });
 

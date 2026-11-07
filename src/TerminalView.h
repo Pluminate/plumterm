@@ -31,7 +31,7 @@ public:
     void setTermFont(const QFont &font);
     void setBeepOnBell(bool on) { m_beepOnBell = on; }
     void setBackground(const QColor &bg) { m_bgOverride = bg; update(); }  // invalid = theme default
-    QString currentDirectory() const;  // shell's cwd from the OS process, empty if unknown
+    QString currentDirectory() const;  // shell's cwd (from the OS process, or its own report on Windows), empty if unknown
     void copySelection();
     void pasteClipboard();
     void selectAllText();
@@ -97,6 +97,7 @@ private:
     QTimer m_blinkTimer;
 
     QString m_pendingCwd;
+    QString m_reportedCwd;  // latest OSC 7 from the shell
     bool m_startRequested = false;
     quint64 m_pty = 0;
     Ctx *m_ctx = nullptr;

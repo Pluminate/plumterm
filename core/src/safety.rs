@@ -9,6 +9,7 @@ use std::time::Duration;
 /// True if `command` parses as valid sh (`/bin/sh -n -c`). Empty/blank is false.
 pub fn verify_command(command: &str) -> bool {
     if command.trim().is_empty() { return false; }
+    if cfg!(windows) { return true; } // no sh to check against; the shell reports its own syntax errors
     run("/bin/sh", &["-n", "-c", command], None, Duration::from_secs(2)).map(|o| o.ok).unwrap_or(false)
 }
 
@@ -35,10 +36,18 @@ pub fn is_dangerous(command: &str) -> bool {
     if first == "git" || first == "cd" { return true; }
     // The JS interpolated `first` into a shell string unescaped. Only look up plain command names.
     if !first.chars().all(|c| c.is_ascii_alphanumeric() || "_.+-".contains(c)) { return false; }
-    let script = format!("alias {first}; which {first}; type {first}");
     // JS had no timeout; an interactive shell can hang on rc files, so cap it.
-    let out = run(&default_shell(), &["-i", "-c", &script], None, Duration::from_secs(5));
-    out.map(|o| mentions_git_or_cd(&o.stdout.to_lowercase())).unwrap_or(false)
+    let out = if cfg!(windows) {
+        let script = format!("(Get-Command {first} -ErrorAction SilentlyContinue).Definition");
+        run(&default_shell(), &["-NoLogo", "-NonInteractive", "-Command", &script], None, Duration::from_secs(5))
+    } else {
+        let script = format!("alias {first}; which {first}; type {first}");
+        run(&default_shell(), &["-i", "-c", &script], None, Duration::from_secs(5))
+    };
+    out.map(|o| {
+        let text = o.stdout.to_lowercase();
+        mentions_git_or_cd(&text) || (cfg!(windows) && text.contains("set-location"))
+    }).unwrap_or(false)
 }
 
 #[no_mangle]
@@ -54,6 +63,7 @@ mod tests {
     // Ported from the earlier Electron app tests
     #[test]
     fn valid_command() { assert!(verify_command("ls -la")); }
+    #[cfg(not(windows))]
     #[test]
     fn syntax_error() { assert!(!verify_command("if [ -z \"$VAR\" ]; then echo \"missing fi\"")); }
     #[test]
@@ -76,6 +86,12 @@ mod tests {
         assert!(mentions_git_or_cd("ll is an alias for cd"));
         assert!(mentions_git_or_cd("/usr/bin/git"));
         assert!(!mentions_git_or_cd("digit abcd cdrom github"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn powershell_alias_for_set_location_is_dangerous() {
+        assert!(is_dangerous("sl C:\\"));
     }
 
     #[test]

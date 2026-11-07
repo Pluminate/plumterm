@@ -17,6 +17,7 @@
 #include "TabBar.h"
 #include "TerminalPane.h"
 #include "TerminalView.h"
+#include "Platform.h"
 
 namespace {
 
@@ -100,11 +101,11 @@ void MainWindow::setupMenuBar() {
     // 1. Shell menu
     auto *shellMenu = bar->addMenu(tr("&Shell"));
 
-    auto *newTabAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, [this] { newTab(); });
-    newTabAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+T")));
+    auto *newTabAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), Platform::menuText(tr("New Tab\t⌘T")), this, [this] { newTab(); });
+    newTabAct->setShortcut(Platform::key("Ctrl+T"));
 
-    auto *newWinAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, [this] { newWindow(); });
-    newWinAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+N")));
+    auto *newWinAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), Platform::menuText(tr("New Window\t⌘N")), this, [this] { newWindow(); });
+    newWinAct->setShortcut(Platform::key("Ctrl+N"));
 
     shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Duplicate Tab"), this, [this] {
         if (m_tabBar) duplicateTab(m_tabBar->activeTabId());
@@ -112,19 +113,19 @@ void MainWindow::setupMenuBar() {
 
     shellMenu->addSeparator();
 
-    auto *splitRightAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] { splitActivePane(true); });
-    splitRightAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+R")));
+    auto *splitRightAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), Platform::menuText(tr("Split Right\t⌘⇧R")), this, [this] { splitActivePane(true); });
+    splitRightAct->setShortcut(Platform::key("Ctrl+Shift+R"));
 
-    auto *splitDownAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] { splitActivePane(false); });
-    splitDownAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+D")));
+    auto *splitDownAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), Platform::menuText(tr("Split Down\t⌘⇧D")), this, [this] { splitActivePane(false); });
+    splitDownAct->setShortcut(Platform::key("Ctrl+Shift+D"));
 
     shellMenu->addSeparator();
 
-    auto *closePaneAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Pane\t⌘W"), this, &MainWindow::closeActivePane);
-    closePaneAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+W")));
+    auto *closePaneAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), Platform::menuText(tr("Close Pane\t⌘W")), this, &MainWindow::closeActivePane);
+    closePaneAct->setShortcut(Platform::key("Ctrl+W"));
 
-    auto *closeTabAct = shellMenu->addAction(tr("Close Tab\t⌘⇧W"), this, &MainWindow::closeActiveTab);
-    closeTabAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+W")));
+    auto *closeTabAct = shellMenu->addAction(Platform::menuText(tr("Close Tab\t⌘⇧W")), this, &MainWindow::closeActiveTab);
+    closeTabAct->setShortcut(Platform::key("Ctrl+Shift+W"));
 
     shellMenu->addAction(tr("Close Other Tabs"), this, [this] {
         if (m_tabBar) closeOtherTabs(m_tabBar->activeTabId());
@@ -134,65 +135,65 @@ void MainWindow::setupMenuBar() {
 
     shellMenu->addSeparator();
 
-    auto *settingsAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, true), tr("Settings…\t⌘,"), this, &MainWindow::openSettings);
-    settingsAct->setShortcut(QKeySequence::Preferences);
+    auto *settingsAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, true), Platform::menuText(tr("Settings…\t⌘,")), this, &MainWindow::openSettings);
+    settingsAct->setShortcut(Platform::key("Ctrl+,"));
     settingsAct->setMenuRole(QAction::PreferencesRole);
 
     // 2. Edit menu
     auto *editMenu = bar->addMenu(tr("&Edit"));
 
-    auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, [this] {
+    auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), Platform::menuText(tr("Copy\t⌘C")), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->copySelection();
     });
-    copyAct->setShortcut(QKeySequence::Copy);
+    copyAct->setShortcut(Platform::key("Ctrl+C"));
 
-    auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, [this] {
+    auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), Platform::menuText(tr("Paste\t⌘V")), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->pasteClipboard();
     });
-    pasteAct->setShortcut(QKeySequence::Paste);
+    pasteAct->setShortcut(Platform::key("Ctrl+V"));
 
-    auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, [this] {
+    auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), Platform::menuText(tr("Select All\t⌘A")), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->selectAllText();
     });
-    selectAllAct->setShortcut(QKeySequence::SelectAll);
+    selectAllAct->setShortcut(Platform::key("Ctrl+A"));
 
     editMenu->addSeparator();
 
-    auto *clearAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, [this] {
+    auto *clearAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), Platform::menuText(tr("Clear Terminal\t⌘K")), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->clearTerminal();
     });
-    clearAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+K")));
+    clearAct->setShortcut(Platform::key("Ctrl+K"));
 
     editMenu->addSeparator();
 
-    auto *findAct = editMenu->addAction(tr("Find…\t⌘F"), this, [this] {
+    auto *findAct = editMenu->addAction(Platform::menuText(tr("Find…\t⌘F")), this, [this] {
         if (m_activePane) m_activePane->toggleSearch();
     });
-    findAct->setShortcut(QKeySequence::Find);
+    findAct->setShortcut(Platform::key("Ctrl+F"));
 
     // 3. View menu
     auto *viewMenu = bar->addMenu(tr("&View"));
 
-    auto *aiAct = viewMenu->addAction(tr("Ask AI…\t⌘G"), this, [this] {
+    auto *aiAct = viewMenu->addAction(Platform::menuText(tr("Ask AI…\t⌘G")), this, [this] {
         if (m_activePane) m_activePane->toggleAi();
     });
-    aiAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+G")));
+    aiAct->setShortcut(Platform::key("Ctrl+G"));
 
-    auto *taskAct = viewMenu->addAction(MenuStyle::makeIcon(MenuIcons::kFlash, true), tr("Run Background Task…\t⌘B"), this, [this] {
+    auto *taskAct = viewMenu->addAction(MenuStyle::makeIcon(MenuIcons::kFlash, true), Platform::menuText(tr("Run Background Task…\t⌘B")), this, [this] {
         if (m_activePane) m_activePane->toggleTask();
     });
-    taskAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+B")));
+    taskAct->setShortcut(Platform::key("Ctrl+B"));
 
     viewMenu->addSeparator();
 
-    viewMenu->addAction(tr("Next Tab\t⌃Tab"), this, [this] {
+    viewMenu->addAction(Platform::menuText(tr("Next Tab\t⌃Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
         const int curIdx = m_stack->currentIndex();
         const int nextIdx = (curIdx + 1) % m_tabs.size();
         m_tabBar->setActiveTab(m_tabs[nextIdx].id);
     });
 
-    viewMenu->addAction(tr("Previous Tab\t⌃⇧Tab"), this, [this] {
+    viewMenu->addAction(Platform::menuText(tr("Previous Tab\t⌃⇧Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
         const int curIdx = m_stack->currentIndex();
         const int prevIdx = (curIdx - 1 + m_tabs.size()) % m_tabs.size();
@@ -201,15 +202,15 @@ void MainWindow::setupMenuBar() {
 
     viewMenu->addSeparator();
 
-    auto *fsAct = viewMenu->addAction(tr("Toggle Full Screen\t⌃⌘F"), this, [this] {
+    auto *fsAct = viewMenu->addAction(Platform::menuText(tr("Toggle Full Screen\t⌃⌘F")), this, [this] {
         if (isFullScreen()) showNormal(); else showFullScreen();
     });
-    fsAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Meta+F")));
+    fsAct->setShortcut(Platform::key("Ctrl+Meta+F"));
 
     // 4. Window menu
     auto *winMenu = bar->addMenu(tr("&Window"));
-    auto *minAct = winMenu->addAction(tr("Minimize\t⌘M"), this, &QWidget::showMinimized);
-    minAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+M")));
+    auto *minAct = winMenu->addAction(Platform::menuText(tr("Minimize\t⌘M")), this, &QWidget::showMinimized);
+    minAct->setShortcut(Platform::key("Ctrl+M"));
 
     winMenu->addAction(tr("Zoom"), this, [this] {
         if (isMaximized()) showNormal(); else showMaximized();
@@ -287,6 +288,7 @@ void MainWindow::closeAllTabs() {
 }
 
 void MainWindow::setupShortcuts() {
+#ifdef Q_OS_MACOS
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+T")), this, [this] {
         if (isMinimized() || !isVisible()) {
             showNormal();
@@ -296,6 +298,15 @@ void MainWindow::setupShortcuts() {
             hide();
         }
     });
+#else
+    // macOS reaches these through keyPressEvent because the terminal lets Cmd+key bubble up. Elsewhere
+    // the terminal consumes every Ctrl+key, so they must be shortcuts. Ctrl+Shift+C is Copy here, so
+    // Commit moves to G (for git), which in turn moves Ask AI to Ctrl+Shift+I.
+    new QShortcut(Platform::key("Ctrl+R"), this, [this] { rerunLastCommand(); });
+    new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+G")), this, [this] {
+        if (m_activePane) m_activePane->openCommitDialog();
+    });
+#endif
 
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
@@ -311,9 +322,14 @@ void MainWindow::setupShortcuts() {
         m_tabBar->setActiveTab(m_tabs[prevIdx].id);
     });
 
-    // Cmd+1 to Cmd+9
+    // Cmd+1 to Cmd+9 (Alt elsewhere: some Ctrl+digits are control characters, and Ctrl+Alt is AltGr)
+#ifdef Q_OS_MACOS
+    const QString tabKey = QStringLiteral("Ctrl+%1");
+#else
+    const QString tabKey = QStringLiteral("Alt+%1");
+#endif
     for (int i = 1; i <= 9; ++i) {
-        new QShortcut(QKeySequence(QStringLiteral("Ctrl+%1").arg(i)), this, [this, i] {
+        new QShortcut(QKeySequence(tabKey.arg(i)), this, [this, i] {
             if (i <= m_tabs.size()) {
                 m_tabBar->setActiveTab(m_tabs[i - 1].id);
             }
@@ -610,6 +626,7 @@ bool MainWindow::restoreSession() {
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *e) {
+#ifdef Q_OS_MACOS
     const Qt::KeyboardModifiers mods = e->modifiers();
     const bool cmd = (mods & Qt::ControlModifier) != 0;
     const bool shift = (mods & Qt::ShiftModifier) != 0;
@@ -669,6 +686,7 @@ void MainWindow::keyPressEvent(QKeyEvent *e) {
             }
         }
     }
+#endif
 
     QMainWindow::keyPressEvent(e);
 }

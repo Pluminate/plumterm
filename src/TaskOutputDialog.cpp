@@ -12,7 +12,7 @@ TaskOutputDialog::TaskOutputDialog(const QString &command, QWidget *parent)
 
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #0f172a; color: #f8fafc; }"
-        "QPlainTextEdit { background-color: #000000; color: #f1f5f9; font-family: Menlo, Monaco, monospace; font-size: 12px; border: 1px solid #334155; border-radius: 4px; padding: 6px; }"
+        "QPlainTextEdit { background-color: #000000; color: #f1f5f9; font-family: Menlo, Monaco, Cascadia Mono, Consolas, monospace; font-size: 12px; border: 1px solid #334155; border-radius: 4px; padding: 6px; }"
         "QPushButton { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 6px 14px; font-size: 12px; font-weight: 500; }"
         "QPushButton:hover { background-color: #334155; }"
         "QPushButton#stopBtn { background-color: #ef4444; border: none; color: #ffffff; }"

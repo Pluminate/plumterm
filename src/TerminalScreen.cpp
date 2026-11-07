@@ -879,6 +879,11 @@ void TerminalScreen::dispatchOsc() {
     } else if (code == "7") {
         // file://<host>/<path>: the host is ignored, the path is percent-decoded.
         const QUrl url(payload);
-        if (url.isValid() && url.scheme() == QLatin1String("file") && !url.path().isEmpty() && m_onCwd) m_onCwd(url.path());
+#ifdef Q_OS_WIN
+        const QString path = url.toLocalFile();  // "C:/x" rather than "/C:/x", and keeps UNC hosts
+#else
+        const QString path = url.path();
+#endif
+        if (url.isValid() && url.scheme() == QLatin1String("file") && !path.isEmpty() && m_onCwd) m_onCwd(path);
     }
 }

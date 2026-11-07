@@ -16,6 +16,25 @@ const MODELS: &[&str] = &[
     "gemini-1.5-flash",
 ];
 
+#[cfg(windows)]
+const CURL: &str = "curl.exe"; // ships with Windows 10 and later
+#[cfg(not(windows))]
+const CURL: &str = "/usr/bin/curl";
+
+// Windows limits a command line to about 32K characters, and the request is passed to curl as one.
+const MAX_DIFF_CONTEXT: usize = 20_000;
+
+#[cfg(windows)]
+const SYSTEM_PROMPT: &str = "\
+You are a terminal assistant. Your job is to convert natural language requests into valid, safe, and efficient PowerShell commands.
+RULES:
+1. Return ONLY the command to execute. No markdown, no triple backticks, no explanations.
+2. If multiple steps are needed, combine them with ';'.
+3. Assume Windows and PowerShell cmdlets, not Unix utilities.
+4. If the request implies danger (delete all files), use proper flags but assume user knows what they are doing.
+5. Output format: Just the command string.";
+
+#[cfg(not(windows))]
 const SYSTEM_PROMPT: &str = "\
 You are a terminal assistant. Your job is to convert natural language requests into valid, safe, and efficient zsh/bash commands.
 RULES:
@@ -63,7 +82,7 @@ fn call_gemini(token: &str, system_inst: &str, user_prompt: &str) -> Result<Stri
         );
 
         let out = run(
-            "/usr/bin/curl",
+            CURL,
             &[
                 "-s",
                 "-X", "POST",
@@ -119,6 +138,7 @@ pub fn generate_commit_message(token: &str, cwd: &Path, files: &[String]) -> Res
 
     let mut diff_context = String::new();
     for f in files {
+        if cfg!(windows) && diff_context.len() > MAX_DIFF_CONTEXT { break; }
         if let Some(d) = file_diff(&root, f) {
             let clean = d.lines()
                 .filter(|l| !l.starts_with("@@") && !l.starts_with("index ") && !l.starts_with("---") && !l.starts_with("+++") && !l.starts_with("diff --git"))

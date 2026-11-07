@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QPixmap>
 #include <QTimer>
 #include "CoreBridge.h"
@@ -16,9 +17,12 @@ int main(int argc, char **argv) {
     auto *w = new MainWindow();
     w->setAttribute(Qt::WA_DeleteOnClose);
     const QStringList args = app.arguments();
-    const QString initCwd = args.size() > 1 ? args.at(1) : QDir::currentPath();
-    if (!w->restoreSession()) {
-        w->newTab(initCwd);
+    // A folder on the command line ("Open in PlumTerm", `plumterm .`) wins over the saved session.
+    const QFileInfo folder(args.size() > 1 ? args.at(1) : QString());
+    if (folder.isDir()) {
+        w->newTab(folder.absoluteFilePath());
+    } else if (!w->restoreSession()) {
+        w->newTab(QDir::currentPath());
     }
 
     if (qEnvironmentVariableIsEmpty("TP_HEADLESS_EXIT")) {

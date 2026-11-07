@@ -22,6 +22,7 @@
 
 #include "CoreBridge.h"
 #include "MenuStyle.h"
+#include "Platform.h"
 
 namespace {
 constexpr int kPadLeft = 8;
@@ -51,7 +52,7 @@ TerminalView::TerminalView(bool dark, QWidget *parent) : QWidget(parent), m_dark
     setMouseTracking(true);
     setCursor(Qt::IBeamCursor);
 
-    m_font = QFont(QStringLiteral("Menlo"));
+    m_font = QFont(QStringList{QStringLiteral("Menlo"), QStringLiteral("Cascadia Mono"), QStringLiteral("Consolas")});
     m_font.setStyleHint(QFont::Monospace);
     m_font.setFixedPitch(true);
     m_font.setPixelSize(13);
@@ -59,7 +60,10 @@ TerminalView::TerminalView(bool dark, QWidget *parent) : QWidget(parent), m_dark
 
     m_screen.setReplyCallback([this](const QByteArray &reply) { sendInput(reply); });
     m_screen.setTitleCallback([this](const QString &t) { emit titleChanged(t); });
-    m_screen.setCwdCallback([this](const QString &c) { emit cwdChanged(c); });
+    m_screen.setCwdCallback([this](const QString &c) {
+        m_reportedCwd = c;
+        emit cwdChanged(c);
+    });
     m_screen.setBellCallback([this] {
         emit bell();
         if (m_beepOnBell) QApplication::beep();
@@ -128,7 +132,14 @@ void TerminalView::sendInput(const QByteArray &bytes) {
     if (m_pty && !bytes.isEmpty()) tp_pty_write(m_pty, reinterpret_cast<const uint8_t *>(bytes.constData()), size_t(bytes.size()));
 }
 
-QString TerminalView::currentDirectory() const { return m_pty ? CoreBridge::ptyCwd(m_pty) : QString(); }
+QString TerminalView::currentDirectory() const {
+#ifdef Q_OS_WIN
+    // PowerShell's location is not its process directory; only the shell's own OSC 7 report is reliable.
+    return m_reportedCwd.isEmpty() ? m_pendingCwd : m_reportedCwd;
+#else
+    return m_pty ? CoreBridge::ptyCwd(m_pty) : QString();
+#endif
+}
 
 void TerminalView::feedOutput(const QByteArray &bytes) {
     const int oldSb = m_screen.scrollbackCount();
@@ -516,6 +527,11 @@ QByteArray TerminalView::encodeKey(QKeyEvent *e) const {
     default: break;
     }
 
+#ifdef Q_OS_WIN
+    // Windows reports AltGr as Ctrl+Alt. If it produced a character (@ or € on many layouts), type that.
+    if (ctrl && alt && !e->text().isEmpty() && e->text().at(0).isPrint()) return e->text().toUtf8();
+#endif
+
     if (ctrl) {
         if (key >= Qt::Key_A && key <= Qt::Key_Z) {
             const char ch = char(key - Qt::Key_A + 1);
@@ -554,6 +570,20 @@ void TerminalView::keyPressEvent(QKeyEvent *e) {
     }
 
     const Qt::KeyboardModifiers mods = e->modifiers();
+#ifdef Q_OS_WIN
+    // Same as Windows Terminal: Ctrl+C copies a selection (and clears it, so the next one interrupts),
+    // otherwise it interrupts. Ctrl+V pastes.
+    if (mods == Qt::ControlModifier) {
+        if (e->key() == Qt::Key_C && m_hasSelection) {
+            copySelection();
+            m_hasSelection = false;
+            update();
+            e->accept();
+            return;
+        }
+        if (e->key() == Qt::Key_V) { pasteClipboard(); e->accept(); return; }
+    }
+#endif
 #ifdef Q_OS_MACOS
     const bool cmd = (mods & Qt::ControlModifier) != 0;
 #else
@@ -755,23 +785,23 @@ void TerminalView::contextMenuEvent(QContextMenuEvent *e) {
     QMenu menu(this);
     MenuStyle::apply(&menu, true);
 
-    auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, &TerminalView::copySelection);
+    auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), Platform::menuText(tr("Copy\t⌘C")), this, &TerminalView::copySelection);
     copyAct->setEnabled(m_hasSelection);
 
-    auto *pasteAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, &TerminalView::pasteClipboard);
+    auto *pasteAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), Platform::menuText(tr("Paste\t⌘V")), this, &TerminalView::pasteClipboard);
     pasteAct->setEnabled(!QApplication::clipboard()->text().isEmpty());
 
     menu.addSeparator();
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, &TerminalView::selectAllText);
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, &TerminalView::clearTerminal);
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), Platform::menuText(tr("Select All\t⌘A")), this, &TerminalView::selectAllText);
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), Platform::menuText(tr("Clear Terminal\t⌘K")), this, &TerminalView::clearTerminal);
 
     menu.addSeparator();
 
-    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"));
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), Platform::menuText(tr("Split Right\t⌘⇧R")));
     connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
 
-    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"));
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), Platform::menuText(tr("Split Down\t⌘⇧D")));
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.exec(e->globalPos());

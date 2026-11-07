@@ -10,7 +10,7 @@ DiffViewerDialog::DiffViewerDialog(const QString &cwd, const QString &file, QWid
     resize(750, 500);
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #0d1117; color: #c9d1d9; }"
-        "QTextEdit { background-color: #0d1117; color: #c9d1d9; border: 1px solid #30363d; font-family: Menlo, Monaco, monospace; font-size: 12px; }"
+        "QTextEdit { background-color: #0d1117; color: #c9d1d9; border: 1px solid #30363d; font-family: Menlo, Monaco, Cascadia Mono, Consolas, monospace; font-size: 12px; }"
         "QPushButton { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 5px 12px; font-size: 12px; }"
         "QPushButton:hover { background-color: #30363d; }"
         "QPushButton#discardBtn { background-color: #8b0000; color: #ffffff; border: 1px solid #da3633; }"
@@ -51,7 +51,7 @@ void DiffViewerDialog::loadDiff() {
         return;
     }
 
-    QString html = QStringLiteral("<pre style=\"font-family: Menlo, Monaco, monospace; margin: 0;\">");
+    QString html = QStringLiteral("<pre style=\"font-family: Menlo, Monaco, Cascadia Mono, Consolas, monospace; margin: 0;\">");
     const QStringList lines = raw.split(QLatin1Char('\n'));
     for (const QString &line : lines) {
         const QString esc = line.toHtmlEscaped();

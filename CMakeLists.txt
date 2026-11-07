@@ -3,12 +3,15 @@ project(plumterm LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+if(MSVC)
+  add_compile_options(/utf-8)  # sources hold non-ASCII menu labels
+endif()
 enable_testing()
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test Svg)
 
 # Rust core -> static library driven by cargo
 set(TP_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
-set(TP_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/cargo/release/libplumterm_core.a)
+set(TP_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/cargo/release/${CMAKE_STATIC_LIBRARY_PREFIX}plumterm_core${CMAKE_STATIC_LIBRARY_SUFFIX})
 file(GLOB TP_CORE_RS ${TP_CORE_DIR}/src/*.rs)
 add_custom_command(
   OUTPUT ${TP_CORE_LIB}
@@ -19,10 +22,16 @@ add_custom_target(plumterm_core_build DEPENDS ${TP_CORE_LIB})
 add_library(plumterm_core STATIC IMPORTED GLOBAL)
 set_target_properties(plumterm_core PROPERTIES IMPORTED_LOCATION ${TP_CORE_LIB}
   INTERFACE_INCLUDE_DIRECTORIES ${TP_CORE_DIR})
+if(WIN32)
+  # Windows libraries the Rust standard library and portable-pty call into.
+  set_target_properties(plumterm_core PROPERTIES INTERFACE_LINK_LIBRARIES
+    "advapi32;bcrypt;dbghelp;kernel32;ntdll;ole32;oleaut32;shell32;user32;userenv;ws2_32")
+endif()
 add_dependencies(plumterm_core plumterm_core_build)
 
 set(TP_SOURCES
   src/CoreBridge.h
+  src/Platform.h
   src/MenuStyle.cpp src/MenuStyle.h
   src/TerminalScreen.cpp src/TerminalScreen.h
   src/TerminalView.cpp src/TerminalView.h
@@ -41,6 +50,7 @@ set(TP_SOURCES
 qt_add_executable(plumterm src/main.cpp ${TP_SOURCES})
 target_include_directories(plumterm PRIVATE src)
 target_link_libraries(plumterm PRIVATE plumterm_core Qt6::Widgets Qt6::Concurrent Qt6::Svg)
+set_target_properties(plumterm PROPERTIES WIN32_EXECUTABLE TRUE)  # no console window behind the app
 if(APPLE)
   target_link_libraries(plumterm PRIVATE "-framework CoreFoundation")
 endif()

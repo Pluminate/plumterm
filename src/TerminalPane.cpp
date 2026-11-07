@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenu>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QVBoxLayout>
 #include "AskAiBar.h"
@@ -80,8 +81,13 @@ void TerminalPane::setActive(bool active) {
 }
 
 QString TerminalPane::getProjectRunCommand(const QString &cwd) const {
+#ifdef Q_OS_WIN
+    const QString defaultScript = QStringLiteral(".\\start.ps1");
+#else
+    const QString defaultScript = QStringLiteral("./start.sh");
+#endif
     const QString targetCwd = cwd.isEmpty() ? currentDirectory() : cwd;
-    if (targetCwd.isEmpty()) return QStringLiteral("./start.sh");
+    if (targetCwd.isEmpty()) return defaultScript;
 
     // 1. settings.json runCommands[cwd]
     const auto s = CoreBridge::settings().toObject();
@@ -91,9 +97,9 @@ QString TerminalPane::getProjectRunCommand(const QString &cwd) const {
         if (!custom.isEmpty()) return custom;
     }
 
-    // 2. ./start.sh
-    if (QFile::exists(targetCwd + QStringLiteral("/start.sh"))) {
-        return QStringLiteral("./start.sh");
+    // 2. ./start.sh (.\start.ps1 on Windows)
+    if (QFile::exists(targetCwd + QLatin1Char('/') + defaultScript.mid(2))) {
+        return defaultScript;
     }
 
     // 3. package.json with scripts.start or scripts.dev
@@ -130,7 +136,7 @@ QString TerminalPane::getProjectRunCommand(const QString &cwd) const {
         return lastCmd;
     }
 
-    return QStringLiteral("./start.sh");
+    return defaultScript;
 }
 
 void TerminalPane::showRunContextMenu(const QPoint &globalPos) {
@@ -274,8 +280,13 @@ void TerminalPane::runBackgroundTask(const QString &cmd) {
         }
     });
 
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS)
     m_bgProcess->start(QStringLiteral("/bin/zsh"), {QStringLiteral("-l"), QStringLiteral("-c"), m_bgCommand});
+#elif defined(Q_OS_WIN)
+    // Output is decoded as UTF-8 above, but a console-less PowerShell writes in the OEM code page.
+    const QString shell = QStandardPaths::findExecutable(QStringLiteral("pwsh")).isEmpty() ? QStringLiteral("powershell") : QStringLiteral("pwsh");
+    m_bgProcess->start(shell, {QStringLiteral("-NoLogo"), QStringLiteral("-NonInteractive"), QStringLiteral("-Command"),
+                               QStringLiteral("[Console]::OutputEncoding = [Text.Encoding]::UTF8; ") + m_bgCommand});
 #else
     m_bgProcess->start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), m_bgCommand});
 #endif
@@ -301,7 +312,12 @@ void TerminalPane::showTaskOutput() {
 
 void TerminalPane::stopBackgroundTask() {
     if (m_bgProcess && m_bgProcess->state() != QProcess::NotRunning) {
+#ifdef Q_OS_WIN
+        // terminate() only asks GUI apps to close, and kill() would leave the command's children running.
+        QProcess::startDetached(QStringLiteral("taskkill"), {QStringLiteral("/PID"), QString::number(m_bgProcess->processId()), QStringLiteral("/T"), QStringLiteral("/F")});
+#else
         m_bgProcess->terminate();
+#endif
         QTimer::singleShot(1000, this, [this] {
             if (m_bgProcess && m_bgProcess->state() != QProcess::NotRunning) {
                 m_bgProcess->kill();

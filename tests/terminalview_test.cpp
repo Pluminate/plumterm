@@ -6,6 +6,7 @@
 #include <QWheelEvent>
 #include <QtTest/QtTest>
 #include "MenuStyle.h"
+#include "Platform.h"
 #include "TerminalView.h"
 
 class TerminalViewTest : public QObject {
@@ -47,6 +48,49 @@ private slots:
         QCOMPARE(keys(v, Qt::Key_C, ctrl), QByteArray(1, '\x03'));
         QCOMPARE(keys(v, Qt::Key_Space, ctrl), QByteArray(1, '\0'));
     }
+
+#ifndef Q_OS_MACOS
+    void appShortcutsLeaveControlKeysToTheShell() {
+        for (const char *shellKey : {"Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+K", "Ctrl+W", "Ctrl+T", "Ctrl+N", "Ctrl+B", "Ctrl+G", "Ctrl+F", "Ctrl+R", "Ctrl+M"}) {
+            QVERIFY2(Platform::key(shellKey) != QKeySequence(QString::fromLatin1(shellKey)), shellKey);
+        }
+        QCOMPARE(Platform::key("Ctrl+C"), QKeySequence(QStringLiteral("Ctrl+Shift+C")));
+        QVERIFY(Platform::key("Ctrl+M").isEmpty());
+        QCOMPARE(Platform::menuText(QString::fromUtf8("Copy\t⌘C")), QStringLiteral("Copy\tCtrl+Shift+C"));
+        QCOMPARE(Platform::menuText(QString::fromUtf8("Minimize\t⌘M")), QStringLiteral("Minimize"));
+        QCOMPARE(Platform::hint(QStringLiteral("Ask AI (Cmd+G)")), QStringLiteral("Ask AI (Ctrl+Shift+I)"));
+    }
+#endif
+
+#ifdef Q_OS_WIN
+    void altGrTypesItsCharacter() {
+        TerminalView v;
+        const Qt::KeyboardModifiers altGr = Qt::ControlModifier | Qt::AltModifier;
+        QCOMPARE(keys(v, Qt::Key_At, altGr, "@"), QByteArrayLiteral("@"));
+        QCOMPARE(keys(v, Qt::Key_E, altGr, QString::fromUtf8("€")), QString::fromUtf8("€").toUtf8());
+        QCOMPARE(keys(v, Qt::Key_C, Qt::ControlModifier), QByteArray(1, '\x03'));  // real Ctrl is untouched
+    }
+
+    void ctrlCCopiesASelectionThenInterrupts() {
+        TerminalView v;
+        sized(v, 400, 200);
+        v.feedOutput("copy me\r\n");
+        v.selectAllText();
+        QApplication::clipboard()->clear();
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
+        QApplication::sendEvent(&v, &press);
+        QVERIFY(QApplication::clipboard()->text().contains("copy me"));
+        QVERIFY(!v.hasSelection());  // the next Ctrl+C goes to the shell as an interrupt
+    }
+
+    void osc7WindowsPathHasNoLeadingSlash() {
+        TerminalView v;
+        QSignalSpy cwd(&v, &TerminalView::cwdChanged);
+        v.feedOutput("\x1b]7;file:///C:/Users/a%20b\x07");
+        QCOMPARE(cwd.value(0).value(0).toString(), QStringLiteral("C:/Users/a b"));
+        QCOMPARE(v.currentDirectory(), QStringLiteral("C:/Users/a b"));
+    }
+#endif
 
     void applicationCursorKeys() {
         TerminalView v;
@@ -163,9 +207,13 @@ private slots:
         TerminalView v;
         sized(v, 640, 320);
         QSignalSpy exited(&v, &TerminalView::exited);
-        v.start("/tmp");
+        v.start(QDir::tempPath());
         QVERIFY(v.isRunning());
+#ifdef Q_OS_WIN
+        v.sendInput("echo tp-$(20+22)-done\r");
+#else
         v.sendInput("echo tp-$((20+22))-done\r");
+#endif
         QTRY_VERIFY_WITH_TIMEOUT(screenText(v).contains("tp-42-done"), 15000);
         v.sendInput("exit\r");
         QTRY_VERIFY_WITH_TIMEOUT(exited.count() == 1, 15000);
@@ -173,6 +221,9 @@ private slots:
     }
 
     void fullScreenProgramUsesAlternateScreen() {
+#ifdef Q_OS_WIN
+        QSKIP("needs `less`, which Windows does not ship");
+#endif
         QTemporaryDir dir;
         QFile f(dir.filePath("pager.txt"));
         QVERIFY(f.open(QIODevice::WriteOnly));
@@ -194,12 +245,16 @@ private slots:
     void startBeforeSizedWaitsForResize() {
         TerminalView v;
         sized(v, 10, 10);  // too small for a grid: no PTY until it has a usable size
-        v.start("/tmp");
+        v.start(QDir::tempPath());
         QVERIFY(!v.isRunning());
         v.resize(640, 320);
         QVERIFY(v.isRunning());
         // shell must see the grid size
+#ifdef Q_OS_WIN
+        v.sendInput("\"$($Host.UI.RawUI.WindowSize.Height) $($Host.UI.RawUI.WindowSize.Width)\"\r");
+#else
         v.sendInput("stty size\r");
+#endif
         QTRY_VERIFY_WITH_TIMEOUT(screenText(v).contains(QStringLiteral("%1 %2").arg(v.rows()).arg(v.cols())), 15000);
     }
 
@@ -208,7 +263,7 @@ private slots:
             auto *v = new TerminalView;
             v->show();
             v->resize(400, 200);
-            v->start("/tmp");
+            v->start(QDir::tempPath());
             QVERIFY(v->isRunning());
             delete v;
         }

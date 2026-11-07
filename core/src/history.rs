@@ -1,9 +1,9 @@
 //! Shell history (ported from main.js getLastShellCommand / app.getShellHistory).
 
-use crate::store::to_c;
+use crate::store::{home_dir, to_c};
 use std::collections::HashSet;
 use std::ffi::c_char;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// zsh extended history line `: <ts>:<dur>;<command>` -> command.
 fn zsh_cmd(line: &str) -> Option<&str> {
@@ -29,8 +29,29 @@ fn is_valid_cmd(c: &str) -> bool {
     true
 }
 
-pub fn last_command(home: &Path) -> Option<String> {
-    if let Some(lines) = read_lines_rev(&home.join(".zsh_history")) {
+struct HistoryFiles {
+    zsh: Option<PathBuf>,
+    plain: PathBuf, // one command per line: bash, or PowerShell's PSReadLine
+}
+
+fn unix_files(home: &Path) -> HistoryFiles {
+    HistoryFiles { zsh: Some(home.join(".zsh_history")), plain: home.join(".bash_history") }
+}
+
+fn user_files() -> HistoryFiles {
+    if cfg!(windows) {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            // PowerShell 7 and Windows PowerShell share this file.
+            let plain = Path::new(&appdata).join("Microsoft").join("Windows").join("PowerShell")
+                .join("PSReadLine").join("ConsoleHost_history.txt");
+            return HistoryFiles { zsh: None, plain };
+        }
+    }
+    unix_files(&home_dir())
+}
+
+fn last_from(files: &HistoryFiles) -> Option<String> {
+    if let Some(lines) = files.zsh.as_deref().and_then(read_lines_rev) {
         for l in &lines {
             if let Some(c) = zsh_cmd(l) {
                 let c = c.trim();
@@ -38,7 +59,7 @@ pub fn last_command(home: &Path) -> Option<String> {
             }
         }
     }
-    if let Some(lines) = read_lines_rev(&home.join(".bash_history")) {
+    if let Some(lines) = read_lines_rev(&files.plain) {
         for l in &lines {
             let c = l.trim();
             if is_valid_cmd(c) { return Some(c.into()); }
@@ -47,8 +68,12 @@ pub fn last_command(home: &Path) -> Option<String> {
     None
 }
 
+pub fn last_command(home: &Path) -> Option<String> { last_from(&unix_files(home)) }
+
 /// Most recent unique commands (excluding `cd`), oldest first; zsh first, bash fills the remainder.
-pub fn recent(home: &Path, limit: usize) -> Vec<String> {
+pub fn recent(home: &Path, limit: usize) -> Vec<String> { recent_from(&unix_files(home), limit) }
+
+fn recent_from(files: &HistoryFiles, limit: usize) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut out: Vec<String> = Vec::new();
     let mut take = |cmd: &str, out: &mut Vec<String>| {
@@ -58,14 +83,14 @@ pub fn recent(home: &Path, limit: usize) -> Vec<String> {
             out.push(c.to_string());
         }
     };
-    if let Some(lines) = read_lines_rev(&home.join(".zsh_history")) {
+    if let Some(lines) = files.zsh.as_deref().and_then(read_lines_rev) {
         for l in &lines {
             if out.len() >= limit { break; }
             if let Some(c) = zsh_cmd(l) { take(c, &mut out); }
         }
     }
     if out.len() < limit {
-        if let Some(lines) = read_lines_rev(&home.join(".bash_history")) {
+        if let Some(lines) = read_lines_rev(&files.plain) {
             for l in &lines { if out.len() >= limit { break; } take(l, &mut out); }
         }
     }
@@ -73,18 +98,16 @@ pub fn recent(home: &Path, limit: usize) -> Vec<String> {
     out
 }
 
-fn home() -> std::path::PathBuf { std::path::PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())) }
-
 /// JSON array of recent commands (free with `tp_string_free`).
 #[no_mangle]
 pub extern "C" fn tp_shell_history(limit: u32) -> *mut c_char {
-    to_c(serde_json::to_string(&recent(&home(), limit as usize)).unwrap())
+    to_c(serde_json::to_string(&recent_from(&user_files(), limit as usize)).unwrap())
 }
 
 /// Last command or NULL (free with `tp_string_free`).
 #[no_mangle]
 pub extern "C" fn tp_last_shell_command() -> *mut c_char {
-    match last_command(&home()) { Some(c) => to_c(c), None => std::ptr::null_mut() }
+    match last_from(&user_files()) { Some(c) => to_c(c), None => std::ptr::null_mut() }
 }
 
 #[cfg(test)]
