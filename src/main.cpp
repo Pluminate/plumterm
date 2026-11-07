@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("PlumTerm");
 #ifdef Q_OS_WIN
+    QApplication::setStyle(QStringLiteral("Fusion"));  // QMenu::exec() freezes under Qt's default Windows 11 style
     QApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);  // title bars follow this, not the stylesheet
 #endif
     MenuStyle::installGlobalHook();
