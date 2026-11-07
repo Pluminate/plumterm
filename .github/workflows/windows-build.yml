@@ -31,7 +31,7 @@ jobs:
             qt_arch: win64_msvc2022_64
             qt_dir: msvc2022_64
     env:
-      QT_PATH: C:\Qt\6.11.3\${{ matrix.qt_dir }}
+      QT_PATH: C:\Qt\6.10.3\${{ matrix.qt_dir }}
     defaults:
       run:
         shell: powershell  # Windows PowerShell 5.1, the version install-local.ps1 has to work on
@@ -45,7 +45,7 @@ jobs:
       - name: Install Qt and Ninja
         run: |
           pip install aqtinstall ninja
-          aqt install-qt ${{ matrix.qt_host }} desktop 6.11.3 ${{ matrix.qt_arch }} --outputdir C:\Qt --archives qtbase qtsvg
+          aqt install-qt ${{ matrix.qt_host }} desktop 6.10.3 ${{ matrix.qt_arch }} --outputdir C:\Qt --archives qtbase qtsvg
 
       - name: Install Rust
         run: |

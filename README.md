@@ -49,11 +49,11 @@ Then open a new terminal for the C++ tools and Qt, using the block that matches 
 ```powershell
 # Windows on ARM (ARM64)
 winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --override "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.Windows11SDK.26100"
-aqt install-qt windows_arm64 desktop 6.11.3 win64_msvc2022_arm64 --outputdir C:\Qt --archives qtbase qtsvg
+aqt install-qt windows_arm64 desktop 6.10.3 win64_msvc2022_arm64 --outputdir C:\Qt --archives qtbase qtsvg
 
 # Intel or AMD (AMD64)
 winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --override "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.Windows11SDK.26100"
-aqt install-qt windows desktop 6.11.3 win64_msvc2022_64 --outputdir C:\Qt --archives qtbase qtsvg
+aqt install-qt windows desktop 6.10.3 win64_msvc2022_64 --outputdir C:\Qt --archives qtbase qtsvg
 ```
 
 Then build and install:
@@ -103,7 +103,7 @@ ctest --test-dir build
 ./build/plumterm
 ```
 
-On Windows, run the same commands from a Developer PowerShell, with `-DCMAKE_PREFIX_PATH` set to your Qt folder (for example `C:\Qt\6.11.3\msvc2022_arm64`) and that folder's `bin` on `PATH` so the tests and app can find the Qt DLLs.
+On Windows, run the same commands from a Developer PowerShell, with `-DCMAKE_PREFIX_PATH` set to your Qt folder (for example `C:\Qt\6.10.3\msvc2022_arm64`) and that folder's `bin` on `PATH` so the tests and app can find the Qt DLLs.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised.
 

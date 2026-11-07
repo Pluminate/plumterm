@@ -2,7 +2,7 @@
 #
 #   .\install-local.ps1                       Build from source, install to %LOCALAPPDATA%\Programs\PlumTerm
 #   .\install-local.ps1 D:\Apps\PlumTerm      Install somewhere else
-#   .\install-local.ps1 -QtDir C:\Qt\6.11.3\msvc2022_arm64
+#   .\install-local.ps1 -QtDir C:\Qt\6.10.3\msvc2022_arm64
 #   .\install-local.ps1 -BundleDir .\app      Install an already built copy; needs no build tools
 #   .\install-local.ps1 -Uninstall            Remove the app, shortcut, PATH entry and folder menu
 #
@@ -138,8 +138,6 @@ function Build-Bundle {
 
     # The command goes in its own folder so PATH does not expose the app's Qt DLLs to other programs.
     Set-Content (Join-Path $stage 'bin\plumterm.cmd') -Encoding Ascii -Value "@start `"`" `"%~dp0..\plumterm.exe`" %*"
-
-    return $stage
 }
 
 if ($Uninstall) {
@@ -159,7 +157,8 @@ if ($BundleDir) {
     if (-not (Test-Path (Join-Path $BundleDir 'plumterm.exe'))) { Fail "$BundleDir does not hold plumterm.exe." }
     $stage = (Resolve-Path $BundleDir).Path
 } else {
-    $stage = Build-Bundle
+    Build-Bundle
+    $stage = Join-Path $Root 'build\bundle'
 }
 
 # ---- Install ----------------------------------------------------------------------------------
