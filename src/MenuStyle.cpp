@@ -16,6 +16,7 @@
 #include <QPainterPath>
 #include <QPixmap>
 #include <QStyleOptionMenuItem>
+#include <QStyleFactory>
 #include <QSvgRenderer>
 #include <QToolButton>
 
@@ -125,7 +126,13 @@ MenuStyle::~MenuStyle() = default;
 
 MenuStyle *MenuStyle::instance() {
     static MenuStyle *s_inst = [] {
+#ifdef Q_OS_WIN
+        // Without a base, QProxyStyle wraps the desktop style even after QApplication::setStyle(),
+        // and QMenu::exec() freezes under the Windows 11 one.
+        auto *style = new MenuStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+#else
         auto *style = new MenuStyle();
+#endif
         if (qApp) style->setParent(qApp);
         return style;
     }();
