@@ -721,6 +721,7 @@ void TerminalView::mouseMoveEvent(QMouseEvent *e) {
 
 void TerminalView::mouseReleaseEvent(QMouseEvent *e) {
     if (e->button() == Qt::LeftButton) m_selecting = false;
+    else e->ignore();  // on Windows, Qt only opens the context menu if the right-button release is ignored
 }
 
 void TerminalView::mouseDoubleClickEvent(QMouseEvent *e) {
