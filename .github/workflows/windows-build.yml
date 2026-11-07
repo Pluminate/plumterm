@@ -13,7 +13,7 @@ jobs:
   build:
     name: ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -72,7 +72,12 @@ jobs:
       - name: Start the installed app with no Qt on PATH
         run: |
           $env:TP_HEADLESS_EXIT = '1'
-          $app = Start-Process "$env:RUNNER_TEMP\PlumTerm\plumterm.exe" -PassThru -Wait
+          $app = Start-Process "$env:RUNNER_TEMP\PlumTerm\plumterm.exe" -PassThru
+          $null = $app.Handle  # keeps the exit code readable after the process ends
+          if (-not $app.WaitForExit(60000)) {
+            Stop-Process $app -Force
+            throw 'plumterm.exe did not exit within 60 seconds.'
+          }
           if ($app.ExitCode -ne 0) { throw "plumterm.exe exited with $($app.ExitCode)" }
 
       - name: Reinstall from the bundle, then uninstall

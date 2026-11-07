@@ -312,7 +312,8 @@ mod tests {
 
         std::fs::write(d.join("a.txt"), "changed\n").unwrap();
         assert_eq!(discard(&d, "a.txt"), json!({"success": true}));
-        assert_eq!(std::fs::read_to_string(d.join("a.txt")).unwrap(), "one\n");
+        // Git may check the file out with CRLF on Windows.
+        assert_eq!(std::fs::read_to_string(d.join("a.txt")).unwrap().replace("\r\n", "\n"), "one\n");
         assert!(discard(&test_dir("git-disc-none"), "a.txt")["error"].is_string());
         assert!(commit(&d, &["nope.txt".into()], "m", false, false)["error"].is_string());
     }

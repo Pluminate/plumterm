@@ -142,6 +142,10 @@ pub fn kill(id: u64) {
     let session = sessions().lock().unwrap().remove(&id);
     if let Some(mut s) = session {
         let _ = s.child.kill();
+        // Closing a pseudo console can block until its host process exits, so never do it on the
+        // caller's thread: that is the UI thread, including while the app is quitting.
+        #[cfg(windows)]
+        std::thread::spawn(move || drop(s));
     }
 }
 
@@ -179,6 +183,13 @@ pub extern "C" fn tp_pty_kill(id: u64) { kill(id) }
 mod tests {
     use super::*;
 
+    // ConPTY asks for the cursor position at startup and waits for the answer, as TerminalScreen gives.
+    fn answer_cursor_query(id: u64, output: &[u8]) {
+        if output.windows(4).any(|w| w == b"\x1b[6n") {
+            write(id, b"\x1b[1;1R");
+        }
+    }
+
     #[test]
     fn pty_runs_a_command_and_reports_exit() {
         use std::sync::mpsc::{channel, Sender};
@@ -198,7 +209,13 @@ mod tests {
         write(id, script);
         let mut out = String::new();
         while let Ok(m) = rx.recv_timeout(std::time::Duration::from_secs(10)) {
-            match m { Some(b) => out.push_str(&String::from_utf8_lossy(&b)), None => break }
+            match m {
+                Some(b) => {
+                    answer_cursor_query(id, &b);
+                    out.push_str(&String::from_utf8_lossy(&b));
+                }
+                None => break,
+            }
         }
         assert!(out.contains("pl-marker-42"), "output was: {out}");
     }
@@ -224,6 +241,7 @@ mod tests {
         // Started in "osc7 folder" (percent-encoded), then `cd ..` must be reported too.
         while std::time::Instant::now() < deadline {
             if let Ok(b) = rx.recv_timeout(std::time::Duration::from_millis(250)) {
+                answer_cursor_query(id, &b);
                 out.push_str(&String::from_utf8_lossy(&b));
             }
             let reports: Vec<&str> = out.split(want_start).skip(1).collect();
