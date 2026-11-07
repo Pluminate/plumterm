@@ -1,7 +1,9 @@
 #include "TabBar.h"
+#include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QStackedLayout>
+#include "MenuStyle.h"
 
 TabItem::TabItem(int id, const QString &title, QWidget *parent)
     : QFrame(parent), m_id(id), m_title(title) {
@@ -74,6 +76,12 @@ void TabItem::mousePressEvent(QMouseEvent *e) {
     QFrame::mousePressEvent(e);
 }
 
+void TabItem::contextMenuEvent(QContextMenuEvent *e) {
+    emit selected(m_id);
+    emit contextMenuRequested(m_id, e->globalPos());
+    e->accept();
+}
+
 void TabItem::mouseDoubleClickEvent(QMouseEvent *e) {
     if (e->button() == Qt::LeftButton) {
         startRename();
@@ -131,6 +139,20 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
     connect(m_addBtn, &QToolButton::clicked, this, &TabBar::newTabRequested);
     mainLayout->addWidget(m_addBtn, 0);
 
+    m_menuBtn = new QToolButton(this);
+    m_menuBtn->setText(QStringLiteral("⋯"));
+    m_menuBtn->setToolTip(QStringLiteral("Tab menu"));
+    m_menuBtn->setAutoRaise(true);
+    m_menuBtn->setFixedSize(28, 28);
+    m_menuBtn->setStyleSheet(QStringLiteral(
+        "QToolButton { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; }"
+        "QToolButton:hover { color: #e2e8f0; }"
+    ));
+    connect(m_menuBtn, &QToolButton::clicked, this, [this] {
+        showTabMenu(m_activeId, m_menuBtn->mapToGlobal(QPoint(0, m_menuBtn->height() + 2)));
+    });
+    mainLayout->addWidget(m_menuBtn, 0);
+
     m_settingsBtn = new QToolButton(this);
     m_settingsBtn->setText(QStringLiteral("⚙"));
     m_settingsBtn->setToolTip(QStringLiteral("Settings (Cmd+,)"));
@@ -152,6 +174,7 @@ int TabBar::addTab(const QString &title) {
 
     connect(item, &TabItem::selected, this, &TabBar::setActiveTab);
     connect(item, &TabItem::closeRequested, this, &TabBar::tabCloseRequested);
+    connect(item, &TabItem::contextMenuRequested, this, &TabBar::showTabMenu);
 
     updateTabStyles();
     setActiveTab(id);
@@ -199,6 +222,70 @@ void TabBar::setTabTitle(int id, const QString &title) {
             break;
         }
     }
+}
+
+void TabBar::startRename(int id) {
+    for (auto *t : m_tabs) {
+        if (t->id() == id) {
+            t->startRename();
+            break;
+        }
+    }
+}
+
+void TabBar::contextMenuEvent(QContextMenuEvent *e) {
+    showTabMenu(m_activeId, e->globalPos());
+    e->accept();
+}
+
+void TabBar::showTabMenu(int id, const QPoint &globalPos) {
+    QMenu menu(this);
+    MenuStyle::apply(&menu, true);
+
+    auto *newTabAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, &TabBar::newTabRequested);
+    Q_UNUSED(newTabAct);
+
+    auto *newWinAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, &TabBar::newWindowRequested);
+    Q_UNUSED(newWinAct);
+
+    if (id > 0) {
+        menu.addSeparator();
+
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kRename, true), tr("Rename Tab…"), this, [this, id] {
+            startRename(id);
+        });
+
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Duplicate Tab"), this, [this, id] {
+            emit duplicateTabRequested(id);
+        });
+    }
+
+    menu.addSeparator();
+
+    if (id > 0) {
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Tab\t⌘W"), this, [this, id] {
+            emit tabCloseRequested(id);
+        });
+
+        auto *closeOtherAct = menu.addAction(tr("Close Other Tabs"), this, [this, id] {
+            emit closeOtherTabsRequested(id);
+        });
+        closeOtherAct->setEnabled(m_tabs.size() > 1);
+    }
+
+    menu.addAction(tr("Close All Tabs"), this, &TabBar::closeAllTabsRequested);
+
+    menu.addSeparator();
+
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] {
+        emit splitRequested(true);
+    });
+
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] {
+        emit splitRequested(false);
+    });
+
+    menu.exec(globalPos);
 }
 
 void TabBar::updateTabStyles() {

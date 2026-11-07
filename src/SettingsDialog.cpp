@@ -61,7 +61,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent) {
     auto *generalLayout = new QVBoxLayout(generalBox);
 
     m_confirmQuitCheck = new QCheckBox(QStringLiteral("Confirm on quit"), generalBox);
-    m_confirmQuitCheck->setChecked(s.value(QStringLiteral("confirmOnQuit")).toBool());
+    m_confirmQuitCheck->setChecked(s.value(QStringLiteral("confirmOnQuit")).toBool(true));
     generalLayout->addWidget(m_confirmQuitCheck);
 
     m_excludeDangerousCheck = new QCheckBox(QStringLiteral("Exclude dangerous commands from auto-rerun (git, cd)"), generalBox);

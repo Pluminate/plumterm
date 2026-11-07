@@ -7,6 +7,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QtConcurrent>
 #include "CoreBridge.h"
@@ -14,6 +16,48 @@
 
 #include "CommitDialog.h"
 #include "DiffViewerDialog.h"
+#include "MenuStyle.h"
+
+namespace {
+
+QIcon createTerminalConsoleIcon() {
+    auto makePix = [](const QColor &color) {
+        QPixmap pix(48, 48);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.scale(2.0, 2.0); // 24x24 logical viewport
+
+        // Window border
+        p.setPen(QPen(color, 1.8));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(QRectF(2.5, 3.5, 19, 17), 2.5, 2.5);
+
+        // Header divider line
+        p.drawLine(QPointF(2.5, 8.5), QPointF(21.5, 8.5));
+
+        // Prompt '>'
+        QPainterPath prompt;
+        prompt.moveTo(6.0, 11.5);
+        prompt.lineTo(9.5, 14.0);
+        prompt.lineTo(6.0, 16.5);
+        p.setPen(QPen(color, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.drawPath(prompt);
+
+        // Cursor '_'
+        p.drawLine(QPointF(11.5, 16.5), QPointF(16.5, 16.5));
+        p.end();
+        return pix;
+    };
+
+    QIcon icon;
+    icon.addPixmap(makePix(QColor(0x94, 0xa3, 0xb8)), QIcon::Normal);
+    icon.addPixmap(makePix(QColor(0x38, 0xbd, 0xf8)), QIcon::Active);
+    icon.addPixmap(makePix(QColor(0x38, 0xbd, 0xf8)), QIcon::Selected);
+    return icon;
+}
+
+} // namespace
 
 PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     : QFrame(parent), m_view(view) {
@@ -63,24 +107,39 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     layout->addWidget(m_aiBtn);
 
     m_taskBtn = new QToolButton(this);
-    m_taskBtn->setText(QStringLiteral("⚙"));
+    m_taskBtn->setIcon(createTerminalConsoleIcon());
+    m_taskBtn->setIconSize(QSize(18, 18));
     m_taskBtn->setToolTip(QStringLiteral("Run Background Task (Cmd+B)"));
     m_taskBtn->setAutoRaise(true);
+    m_taskBtn->setCursor(Qt::PointingHandCursor);
     m_taskBtn->setStyleSheet(QStringLiteral(
-        "QToolButton { color: #888888; font-size: 12px; border: none; padding: 2px 4px; }"
-        "QToolButton:hover { color: #3498db; background-color: #1a1a1a; border-radius: 3px; }"
+        "QToolButton { border: none; padding: 2px 4px; border-radius: 3px; }"
+        "QToolButton:hover { background-color: #1a1a1a; }"
     ));
+    connect(m_taskBtn, &QToolButton::clicked, this, &PaneHeader::taskRequested);
     layout->addWidget(m_taskBtn);
+
+    m_taskIndicatorBtn = new QToolButton(this);
+    m_taskIndicatorBtn->setAutoRaise(true);
+    m_taskIndicatorBtn->setCursor(Qt::PointingHandCursor);
+    m_taskIndicatorBtn->setVisible(false);
+    connect(m_taskIndicatorBtn, &QToolButton::clicked, this, &PaneHeader::taskIndicatorClicked);
+    layout->addWidget(m_taskIndicatorBtn);
 
     m_runBtn = new QToolButton(this);
     m_runBtn->setText(QStringLiteral("▶"));
-    m_runBtn->setToolTip(QStringLiteral("Run / Rerun (Cmd+R)"));
+    m_runBtn->setToolTip(QStringLiteral("Run (Cmd+R) · Right-click to configure"));
     m_runBtn->setAutoRaise(true);
+    m_runBtn->setCursor(Qt::PointingHandCursor);
     m_runBtn->setStyleSheet(QStringLiteral(
-        "QToolButton { color: #2ecc71; font-size: 12px; border: none; padding: 2px 4px; }"
+        "QToolButton { color: #2ecc71; font-size: 13px; font-weight: bold; border: none; padding: 2px 4px; }"
         "QToolButton:hover { color: #4ade80; background-color: #1a1a1a; border-radius: 3px; }"
     ));
     connect(m_runBtn, &QToolButton::clicked, this, &PaneHeader::runRequested);
+    m_runBtn->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_runBtn, &QToolButton::customContextMenuRequested, this, [this](const QPoint &p) {
+        emit runContextMenuRequested(m_runBtn->mapToGlobal(p));
+    });
     layout->addWidget(m_runBtn);
 
     setActive(true);
@@ -89,6 +148,42 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     m_pollTimer.start(3000);
 
     QTimer::singleShot(200, this, &PaneHeader::updateStatus);
+}
+
+void PaneHeader::setTaskStatus(bool running, const QString &command, int exitCode) {
+    if (command.isEmpty()) {
+        m_taskIndicatorBtn->setVisible(false);
+        return;
+    }
+
+    const QString shortCmd = command.length() > 25 ? (command.left(22) + QStringLiteral("…")) : command;
+
+    if (running) {
+        m_taskIndicatorBtn->setText(QStringLiteral("● %1").arg(shortCmd));
+        m_taskIndicatorBtn->setToolTip(QStringLiteral("Running: %1\nClick to view output").arg(command));
+        m_taskIndicatorBtn->setStyleSheet(QStringLiteral(
+            "QToolButton { color: #f59e0b; font-size: 11px; font-weight: 600; padding: 1px 6px; background-color: #271c08; border: 1px solid #78350f; border-radius: 3px; }"
+            "QToolButton:hover { background-color: #3b280b; color: #fbbf24; }"
+        ));
+        m_taskIndicatorBtn->setVisible(true);
+    } else {
+        if (exitCode == 0) {
+            m_taskIndicatorBtn->setText(QStringLiteral("✓ %1").arg(shortCmd));
+            m_taskIndicatorBtn->setToolTip(QStringLiteral("Finished successfully: %1\nClick to view output").arg(command));
+            m_taskIndicatorBtn->setStyleSheet(QStringLiteral(
+                "QToolButton { color: #22c55e; font-size: 11px; font-weight: 600; padding: 1px 6px; background-color: #0d2b1a; border: 1px solid #166534; border-radius: 3px; }"
+                "QToolButton:hover { background-color: #143d26; color: #4ade80; }"
+            ));
+        } else {
+            m_taskIndicatorBtn->setText(QStringLiteral("✗ %1 (%2)").arg(shortCmd).arg(exitCode));
+            m_taskIndicatorBtn->setToolTip(QStringLiteral("Failed with exit code %1: %2\nClick to view output").arg(exitCode).arg(command));
+            m_taskIndicatorBtn->setStyleSheet(QStringLiteral(
+                "QToolButton { color: #ef4444; font-size: 11px; font-weight: 600; padding: 1px 6px; background-color: #2b0d0d; border: 1px solid #991b1b; border-radius: 3px; }"
+                "QToolButton:hover { background-color: #3d1414; color: #f87171; }"
+            ));
+        }
+        m_taskIndicatorBtn->setVisible(true);
+    }
 }
 
 void PaneHeader::setActive(bool active) {
@@ -170,30 +265,24 @@ void PaneHeader::mousePressEvent(QMouseEvent *e) {
         }
         if (m_statsLabel->isVisible() && m_statsLabel->geometry().contains(e->pos())) {
             QMenu menu(this);
-            menu.setStyleSheet(QStringLiteral(
-                "QMenu { background-color: #1e1e20; color: #cccccc; border: 1px solid #333333; padding: 4px; }"
-                "QMenu::item { padding: 4px 16px; border-radius: 3px; font-size: 12px; }"
-                "QMenu::item:selected { background-color: #3574f0; color: #ffffff; }"
-                "QMenu::separator { height: 1px; background-color: #333333; margin: 4px 0; }"
-            ));
+            MenuStyle::apply(&menu, true);
 
-            auto *commitAct = menu.addAction(QStringLiteral("✨ Commit Changes..."));
+            auto *commitAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, true), QStringLiteral("Commit Changes…"));
             connect(commitAct, &QAction::triggered, this, [this] {
                 CommitDialog dlg(m_lastCwd, this);
                 dlg.exec();
                 updateStatus();
             });
 
-            menu.addSeparator();
-
             const auto filesVal = CoreBridge::git::changedFiles(m_lastCwd);
-            if (filesVal.isArray()) {
+            if (filesVal.isArray() && !filesVal.toArray().isEmpty()) {
+                menu.addSeparator();
                 for (const auto &item : filesVal.toArray()) {
                     const auto obj = item.toObject();
                     const QString st = obj.value(QStringLiteral("status")).toString();
                     const QString f = obj.value(QStringLiteral("file")).toString();
 
-                    auto *fileAct = menu.addAction(QStringLiteral("[%1] %2").arg(st, f));
+                    auto *fileAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kDiff, true), QStringLiteral("[%1] %2").arg(st, f));
                     connect(fileAct, &QAction::triggered, this, [this, f] {
                         DiffViewerDialog dlg(m_lastCwd, f, this);
                         dlg.exec();
@@ -218,22 +307,17 @@ void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {
     }
 
     QMenu menu(this);
-    menu.setStyleSheet(QStringLiteral(
-        "QMenu { background-color: #1e1e20; color: #cccccc; border: 1px solid #333333; padding: 4px; }"
-        "QMenu::item { padding: 4px 20px; border-radius: 3px; font-size: 12px; }"
-        "QMenu::item:selected { background-color: #3574f0; color: #ffffff; }"
-        "QMenu::separator { height: 1px; background-color: #333333; margin: 4px 0; }"
-    ));
+    MenuStyle::apply(&menu, true);
 
-    auto *splitRightAct = menu.addAction(QStringLiteral("Split Right (Cmd+Shift+R)"));
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), QStringLiteral("Split Right\t⌘⇧R"));
     connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
 
-    auto *splitDownAct = menu.addAction(QStringLiteral("Split Down (Cmd+Shift+D)"));
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), QStringLiteral("Split Down\t⌘⇧D"));
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.addSeparator();
 
-    auto *closeAct = menu.addAction(QStringLiteral("Close Pane (Cmd+W)"));
+    auto *closeAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), QStringLiteral("Close Pane\t⌘W"));
     connect(closeAct, &QAction::triggered, this, &PaneHeader::closeRequested);
 
     menu.exec(e->globalPos());
@@ -241,38 +325,33 @@ void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {
 
 void PaneHeader::showFolderMenu(const QPoint &globalPos) {
     QMenu menu(this);
-    menu.setStyleSheet(QStringLiteral(
-        "QMenu { background-color: #1e1e20; color: #cccccc; border: 1px solid #333333; padding: 4px; }"
-        "QMenu::item { padding: 4px 20px; border-radius: 3px; font-size: 12px; }"
-        "QMenu::item:selected { background-color: #3574f0; color: #ffffff; }"
-        "QMenu::separator { height: 1px; background-color: #333333; margin: 4px 0; }"
-    ));
+    MenuStyle::apply(&menu, true);
 
-    auto *copyPath = menu.addAction(QStringLiteral("Copy Path"));
+    auto *copyPath = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), QStringLiteral("Copy Path"));
     connect(copyPath, &QAction::triggered, this, [this] {
         QApplication::clipboard()->setText(m_lastCwd);
     });
 
     menu.addSeparator();
 
-    auto *openFinder = menu.addAction(QStringLiteral("Open in Finder"));
+    auto *openFinder = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFinder, true), QStringLiteral("Open in Finder"));
     connect(openFinder, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("finder"), m_lastCwd);
     });
 
     menu.addSeparator();
 
-    auto *openVSCode = menu.addAction(QStringLiteral("Open in VS Code"));
+    auto *openVSCode = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, true), QStringLiteral("Open in VS Code"));
     connect(openVSCode, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("vscode"), m_lastCwd);
     });
 
-    auto *openIntelliJ = menu.addAction(QStringLiteral("Open in IntelliJ IDEA"));
+    auto *openIntelliJ = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, true), QStringLiteral("Open in IntelliJ IDEA"));
     connect(openIntelliJ, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("intellij"), m_lastCwd);
     });
 
-    auto *openGithubDesktop = menu.addAction(QStringLiteral("Open in GitHub Desktop"));
+    auto *openGithubDesktop = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, true), QStringLiteral("Open in GitHub Desktop"));
     connect(openGithubDesktop, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("githubdesktop"), m_lastCwd);
     });
@@ -285,21 +364,15 @@ void PaneHeader::showBranchMenu(const QPoint &globalPos) {
     if (!branchesVal.isArray()) return;
 
     QMenu menu(this);
-    menu.setStyleSheet(QStringLiteral(
-        "QMenu { background-color: #1e1e20; color: #cccccc; border: 1px solid #333333; padding: 4px; max-height: 300px; }"
-        "QMenu::item { padding: 4px 20px; border-radius: 3px; font-size: 12px; }"
-        "QMenu::item:selected { background-color: #3574f0; color: #ffffff; }"
-    ));
+    MenuStyle::apply(&menu, true);
 
     const auto branches = branchesVal.toArray();
     for (const auto &bVal : branches) {
         const QString b = bVal.toString();
         auto *act = menu.addAction(b);
+        act->setCheckable(true);
         if (b == m_lastBranch) {
-            act->setIcon(QIcon());
-            QFont f = act->font();
-            f.setBold(true);
-            act->setFont(f);
+            act->setChecked(true);
         }
         connect(act, &QAction::triggered, this, [this, b] {
             if (m_view) {

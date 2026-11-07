@@ -16,6 +16,12 @@ public:
 
     TerminalPane *activePane() const { return m_activePane; }
     void newTab(const QString &cwd = {});
+    void newWindow(const QString &cwd = {});
+    void duplicateTab(int id);
+    void closeTab(int id);
+    void closeActiveTab();
+    void closeOtherTabs(int keepId);
+    void closeAllTabs();
     void splitActivePane(bool right);
     void splitPaneAt(int index, bool right);
     void closeActivePane();
@@ -39,9 +45,11 @@ private:
 
     void setActivePane(TerminalPane *pane);
     void removePane(TerminalPane *pane);
+    bool confirmClose();
     TabInfo *currentTabInfo();
     TabInfo *tabInfoForId(int id);
     void setupShortcuts();
+    void setupMenuBar();
 
     TabBar *m_tabBar = nullptr;
     QStackedWidget *m_stack = nullptr;

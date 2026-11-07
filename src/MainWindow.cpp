@@ -6,9 +6,13 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMenuBar>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QShortcut>
 #include <QVBoxLayout>
 #include "CoreBridge.h"
+#include "MenuStyle.h"
 #include "SettingsDialog.h"
 #include "TabBar.h"
 #include "TerminalPane.h"
@@ -75,29 +79,212 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         }
     });
 
-    connect(m_tabBar, &TabBar::tabCloseRequested, this, [this](int id) {
-        if (m_tabs.size() <= 1) return;
-        for (int i = 0; i < m_tabs.size(); ++i) {
-            if (m_tabs[i].id == id) {
-                auto *container = m_tabs[i].container;
-                m_tabs.removeAt(i);
-                m_tabBar->removeTab(id);
-                if (container) {
-                    m_stack->removeWidget(container);
-                    container->deleteLater();
-                }
-                break;
-            }
-        }
-    });
-
+    connect(m_tabBar, &TabBar::tabCloseRequested, this, &MainWindow::closeTab);
     connect(m_tabBar, &TabBar::newTabRequested, this, [this] { newTab(); });
+    connect(m_tabBar, &TabBar::newWindowRequested, this, [this] { newWindow(); });
+    connect(m_tabBar, &TabBar::duplicateTabRequested, this, &MainWindow::duplicateTab);
+    connect(m_tabBar, &TabBar::closeOtherTabsRequested, this, &MainWindow::closeOtherTabs);
+    connect(m_tabBar, &TabBar::closeAllTabsRequested, this, &MainWindow::closeAllTabs);
+    connect(m_tabBar, &TabBar::splitRequested, this, &MainWindow::splitActivePane);
     connect(m_tabBar, &TabBar::settingsRequested, this, &MainWindow::openSettings);
 
+    setupMenuBar();
     setupShortcuts();
 }
 
 MainWindow::~MainWindow() = default;
+
+void MainWindow::setupMenuBar() {
+    auto *bar = menuBar();
+
+    // 1. Shell menu
+    auto *shellMenu = bar->addMenu(tr("&Shell"));
+
+    auto *newTabAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, [this] { newTab(); });
+    newTabAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+T")));
+
+    auto *newWinAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, [this] { newWindow(); });
+    newWinAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+N")));
+
+    shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Duplicate Tab"), this, [this] {
+        if (m_tabBar) duplicateTab(m_tabBar->activeTabId());
+    });
+
+    shellMenu->addSeparator();
+
+    auto *splitRightAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] { splitActivePane(true); });
+    splitRightAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+R")));
+
+    auto *splitDownAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] { splitActivePane(false); });
+    splitDownAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+D")));
+
+    shellMenu->addSeparator();
+
+    auto *closePaneAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Pane\t⌘W"), this, &MainWindow::closeActivePane);
+    closePaneAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+W")));
+
+    auto *closeTabAct = shellMenu->addAction(tr("Close Tab\t⌘⇧W"), this, &MainWindow::closeActiveTab);
+    closeTabAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+W")));
+
+    shellMenu->addAction(tr("Close Other Tabs"), this, [this] {
+        if (m_tabBar) closeOtherTabs(m_tabBar->activeTabId());
+    });
+
+    shellMenu->addAction(tr("Close All Tabs"), this, &MainWindow::closeAllTabs);
+
+    shellMenu->addSeparator();
+
+    auto *settingsAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, true), tr("Settings…\t⌘,"), this, &MainWindow::openSettings);
+    settingsAct->setShortcut(QKeySequence::Preferences);
+    settingsAct->setMenuRole(QAction::PreferencesRole);
+
+    // 2. Edit menu
+    auto *editMenu = bar->addMenu(tr("&Edit"));
+
+    auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, [this] {
+        if (m_activePane && m_activePane->view()) m_activePane->view()->copySelection();
+    });
+    copyAct->setShortcut(QKeySequence::Copy);
+
+    auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, [this] {
+        if (m_activePane && m_activePane->view()) m_activePane->view()->pasteClipboard();
+    });
+    pasteAct->setShortcut(QKeySequence::Paste);
+
+    auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, [this] {
+        if (m_activePane && m_activePane->view()) m_activePane->view()->selectAllText();
+    });
+    selectAllAct->setShortcut(QKeySequence::SelectAll);
+
+    editMenu->addSeparator();
+
+    auto *clearAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, [this] {
+        if (m_activePane && m_activePane->view()) m_activePane->view()->clearTerminal();
+    });
+    clearAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+K")));
+
+    editMenu->addSeparator();
+
+    auto *findAct = editMenu->addAction(tr("Find…\t⌘F"), this, [this] {
+        if (m_activePane) m_activePane->toggleSearch();
+    });
+    findAct->setShortcut(QKeySequence::Find);
+
+    // 3. View menu
+    auto *viewMenu = bar->addMenu(tr("&View"));
+
+    auto *aiAct = viewMenu->addAction(tr("Ask AI…\t⌘G"), this, [this] {
+        if (m_activePane) m_activePane->toggleAi();
+    });
+    aiAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+G")));
+
+    auto *taskAct = viewMenu->addAction(MenuStyle::makeIcon(MenuIcons::kFlash, true), tr("Run Background Task…\t⌘B"), this, [this] {
+        if (m_activePane) m_activePane->toggleTask();
+    });
+    taskAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+B")));
+
+    viewMenu->addSeparator();
+
+    viewMenu->addAction(tr("Next Tab\t⌃Tab"), this, [this] {
+        if (m_tabs.size() <= 1) return;
+        const int curIdx = m_stack->currentIndex();
+        const int nextIdx = (curIdx + 1) % m_tabs.size();
+        m_tabBar->setActiveTab(m_tabs[nextIdx].id);
+    });
+
+    viewMenu->addAction(tr("Previous Tab\t⌃⇧Tab"), this, [this] {
+        if (m_tabs.size() <= 1) return;
+        const int curIdx = m_stack->currentIndex();
+        const int prevIdx = (curIdx - 1 + m_tabs.size()) % m_tabs.size();
+        m_tabBar->setActiveTab(m_tabs[prevIdx].id);
+    });
+
+    viewMenu->addSeparator();
+
+    auto *fsAct = viewMenu->addAction(tr("Toggle Full Screen\t⌃⌘F"), this, [this] {
+        if (isFullScreen()) showNormal(); else showFullScreen();
+    });
+    fsAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Meta+F")));
+
+    // 4. Window menu
+    auto *winMenu = bar->addMenu(tr("&Window"));
+    auto *minAct = winMenu->addAction(tr("Minimize\t⌘M"), this, &QWidget::showMinimized);
+    minAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+M")));
+
+    winMenu->addAction(tr("Zoom"), this, [this] {
+        if (isMaximized()) showNormal(); else showMaximized();
+    });
+
+    winMenu->addSeparator();
+    winMenu->addAction(tr("Bring All to Front"), this, &QWidget::raise);
+}
+
+void MainWindow::newWindow(const QString &cwd) {
+    auto *win = new MainWindow();
+    win->setAttribute(Qt::WA_DeleteOnClose);
+    const QString targetCwd = cwd.isEmpty() ? (m_activePane ? m_activePane->currentDirectory() : QDir::currentPath()) : cwd;
+    win->newTab(targetCwd);
+    win->resize(size());
+    win->move(pos() + QPoint(30, 30));
+    win->show();
+    win->raise();
+    win->activateWindow();
+}
+
+void MainWindow::duplicateTab(int id) {
+    auto *t = tabInfoForId(id);
+    if (!t) return;
+    QString cwd;
+    if (!t->panes.isEmpty() && t->panes.first()) {
+        cwd = t->panes.first()->currentDirectory();
+    }
+    newTab(cwd);
+}
+
+void MainWindow::closeTab(int id) {
+    if (m_tabs.size() == 1 && tabInfoForId(id)) {
+        close();
+        return;
+    }
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].id == id) {
+            auto *container = m_tabs[i].container;
+            m_tabs.removeAt(i);
+            m_tabBar->removeTab(id);
+            if (container) {
+                m_stack->removeWidget(container);
+                container->deleteLater();
+            }
+            break;
+        }
+    }
+    if (m_tabs.isEmpty()) {
+        close();
+    } else {
+        auto *t = currentTabInfo();
+        if (t && !t->panes.isEmpty() && t->panes.first()) {
+            setActivePane(t->panes.first());
+        }
+    }
+}
+
+void MainWindow::closeActiveTab() {
+    if (m_tabBar) closeTab(m_tabBar->activeTabId());
+}
+
+void MainWindow::closeOtherTabs(int keepId) {
+    QList<int> toClose;
+    for (const auto &t : m_tabs) {
+        if (t.id != keepId) toClose.append(t.id);
+    }
+    for (int id : toClose) {
+        closeTab(id);
+    }
+}
+
+void MainWindow::closeAllTabs() {
+    close();
+}
 
 void MainWindow::setupShortcuts() {
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+T")), this, [this] {
@@ -137,7 +324,8 @@ void MainWindow::setupShortcuts() {
 TerminalPane *MainWindow::createPane(const QString &cwd, QWidget *parent) {
     auto *pane = new TerminalPane(cwd, parent);
     connect(pane, &TerminalPane::activated, this, &MainWindow::setActivePane);
-    connect(pane, &TerminalPane::splitRequested, this, [this](TerminalPane *, bool right) {
+    connect(pane, &TerminalPane::splitRequested, this, [this](TerminalPane *p, bool right) {
+        if (p) setActivePane(p);
         splitActivePane(right);
     });
     connect(pane, &TerminalPane::closeRequested, this, [this](TerminalPane *p) {
@@ -227,14 +415,15 @@ void MainWindow::removePane(TerminalPane *pane) {
     auto *t = currentTabInfo();
     if (!t || !pane) return;
 
+    if (m_tabs.size() == 1 && t->panes.size() == 1 && t->panes.contains(pane)) {
+        close();
+        return;
+    }
+
     t->panes.removeAll(pane);
 
     if (t->panes.isEmpty()) {
-        if (m_tabs.size() > 1) {
-            m_tabBar->removeTab(t->id);
-        } else {
-            close();
-        }
+        closeTab(t->id);
         return;
     }
 
@@ -295,7 +484,28 @@ MainWindow::TabInfo *MainWindow::tabInfoForId(int id) {
     return nullptr;
 }
 
+bool MainWindow::confirmClose() {
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("Confirm Close"));
+    box.setText(tr("Are you sure you want to close this window?"));
+    box.setInformativeText(tr("All active terminal sessions in this window will be terminated."));
+    auto *closeBtn = box.addButton(tr("Close Window"), QMessageBox::AcceptRole);
+    auto *cancelBtn = box.addButton(QMessageBox::Cancel);
+    box.setDefaultButton(closeBtn);
+    box.setEscapeButton(cancelBtn);
+    box.exec();
+    return box.clickedButton() == closeBtn;
+}
+
 void MainWindow::closeEvent(QCloseEvent *e) {
+    const auto s = CoreBridge::settings().toObject();
+    if (s.value(QStringLiteral("confirmOnQuit")).toBool(true) && qEnvironmentVariableIsEmpty("TP_SHOT") && qEnvironmentVariableIsEmpty("TP_HEADLESS_EXIT")) {
+        if (!confirmClose()) {
+            e->ignore();
+            return;
+        }
+    }
     saveSession();
     QMainWindow::closeEvent(e);
 }
@@ -429,6 +639,11 @@ void MainWindow::keyPressEvent(QKeyEvent *e) {
             }
             if (e->key() == Qt::Key_G) {
                 if (m_activePane) m_activePane->toggleAi(); // Cmd+G: Ask AI
+                e->accept();
+                return;
+            }
+            if (e->key() == Qt::Key_B) {
+                if (m_activePane) m_activePane->toggleTask(); // Cmd+B: Run Background Task
                 e->accept();
                 return;
             }

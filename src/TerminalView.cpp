@@ -21,6 +21,7 @@
 #include <cmath>
 
 #include "CoreBridge.h"
+#include "MenuStyle.h"
 
 namespace {
 constexpr int kPadLeft = 8;
@@ -118,6 +119,7 @@ void TerminalView::onExit(void *user, quint64) {
         if (!v) return;
         v->m_pty = 0;
         v->m_ctx = nullptr;
+        v->feedOutput(QByteArrayLiteral("\r\n\x1b[90m[Process completed - Press Enter to restart shell]\x1b[0m\r\n"));
         emit v->exited();
     }, Qt::QueuedConnection);
 }
@@ -543,6 +545,14 @@ QByteArray TerminalView::encodeKey(QKeyEvent *e) const {
 }
 
 void TerminalView::keyPressEvent(QKeyEvent *e) {
+    if (!isRunning()) {
+        if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter || e->key() == Qt::Key_C || e->key() == Qt::Key_Space) {
+            start(m_pendingCwd.isEmpty() ? QDir::homePath() : m_pendingCwd);
+            e->accept();
+            return;
+        }
+    }
+
     const Qt::KeyboardModifiers mods = e->modifiers();
 #ifdef Q_OS_MACOS
     const bool cmd = (mods & Qt::ControlModifier) != 0;
@@ -708,13 +718,30 @@ void TerminalView::wheelEvent(QWheelEvent *e) {
     if (stepLines == 0) { e->accept(); return; }
     m_wheelCarry -= stepLines * m_cellH;
 
-    if (m_screen.usingAlternateScreen()) {  // full-screen apps (less, vim): wheel = arrow keys
+    if (m_screen.mouseTracking()) {
+        const int col = std::clamp(int((e->position().x() - kPadLeft) / m_cellW) + 1, 1, m_screen.cols());
+        const int row = std::clamp(int((e->position().y() - kPadTop) / m_cellH) + 1, 1, m_screen.rows());
+        int btn = stepLines > 0 ? 64 : 65;
+        const Qt::KeyboardModifiers mods = e->modifiers();
+        if (mods & Qt::ShiftModifier) btn |= 4;
+        if (mods & Qt::AltModifier)   btn |= 8;
+#ifdef Q_OS_MACOS
+        if (mods & Qt::MetaModifier)  btn |= 16;
+#else
+        if (mods & Qt::ControlModifier) btn |= 16;
+#endif
+        const QByteArray seq = m_screen.mouseSgr()
+            ? QStringLiteral("\x1b[<%1;%2;%3M").arg(btn).arg(col).arg(row).toLatin1()
+            : QByteArrayLiteral("\x1b[M") + char(32 + btn) + char(32 + std::min(col, 223)) + char(32 + std::min(row, 223));
+        const int count = std::min(10, std::abs(stepLines));
+        for (int i = 0; i < count; ++i) sendInput(seq);
+    } else if (m_screen.usingAlternateScreen() && m_screen.alternateScroll()) {
         const bool app = m_screen.applicationCursorKeys();
         const QByteArray seq = stepLines > 0 ? (app ? QByteArrayLiteral("\x1bOA") : QByteArrayLiteral("\x1b[A"))
                                              : (app ? QByteArrayLiteral("\x1bOB") : QByteArrayLiteral("\x1b[B"));
         const int count = std::min(10, std::abs(stepLines));
         for (int i = 0; i < count; ++i) sendInput(seq);
-    } else {
+    } else if (!m_screen.usingAlternateScreen()) {
         m_scrollOffset = std::clamp(m_scrollOffset + stepLines, 0, m_screen.scrollbackCount());
         update();
     }
@@ -722,12 +749,31 @@ void TerminalView::wheelEvent(QWheelEvent *e) {
 }
 
 void TerminalView::contextMenuEvent(QContextMenuEvent *e) {
+    setFocus(Qt::MouseFocusReason);
+    emit activated();
+
     QMenu menu(this);
-    menu.addAction(tr("Copy"), this, &TerminalView::copySelection)->setEnabled(m_hasSelection);
-    menu.addAction(tr("Paste"), this, &TerminalView::pasteClipboard);
+    MenuStyle::apply(&menu, true);
+
+    auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, &TerminalView::copySelection);
+    copyAct->setEnabled(m_hasSelection);
+
+    auto *pasteAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, &TerminalView::pasteClipboard);
+    pasteAct->setEnabled(!QApplication::clipboard()->text().isEmpty());
+
     menu.addSeparator();
-    menu.addAction(tr("Select All"), this, &TerminalView::selectAllText);
-    menu.addAction(tr("Clear Terminal"), this, &TerminalView::clearTerminal);
+
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, &TerminalView::selectAllText);
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, &TerminalView::clearTerminal);
+
+    menu.addSeparator();
+
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"));
+    connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
+
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"));
+    connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
+
     menu.exec(e->globalPos());
 }
 

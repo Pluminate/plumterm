@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 enable_testing()
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test Svg)
 
 # Rust core -> static library driven by cargo
 set(TP_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
@@ -23,6 +23,7 @@ add_dependencies(tp_core tp_core_build)
 
 set(TP_SOURCES
   src/CoreBridge.h
+  src/MenuStyle.cpp src/MenuStyle.h
   src/TerminalScreen.cpp src/TerminalScreen.h
   src/TerminalView.cpp src/TerminalView.h
   src/PaneHeader.cpp src/PaneHeader.h
@@ -30,6 +31,8 @@ set(TP_SOURCES
   src/TabBar.cpp src/TabBar.h
   src/SearchBar.cpp src/SearchBar.h
   src/AskAiBar.cpp src/AskAiBar.h
+  src/TaskBar.cpp src/TaskBar.h
+  src/TaskOutputDialog.cpp src/TaskOutputDialog.h
   src/DiffViewerDialog.cpp src/DiffViewerDialog.h
   src/CommitDialog.cpp src/CommitDialog.h
   src/SettingsDialog.cpp src/SettingsDialog.h
@@ -37,7 +40,7 @@ set(TP_SOURCES
 )
 qt_add_executable(terminalpro src/main.cpp ${TP_SOURCES})
 target_include_directories(terminalpro PRIVATE src)
-target_link_libraries(terminalpro PRIVATE tp_core Qt6::Widgets Qt6::Concurrent)
+target_link_libraries(terminalpro PRIVATE tp_core Qt6::Widgets Qt6::Concurrent Qt6::Svg)
 if(APPLE)
   target_link_libraries(terminalpro PRIVATE "-framework CoreFoundation")
 endif()
@@ -47,9 +50,9 @@ target_include_directories(corebridge_test PRIVATE src)
 target_link_libraries(corebridge_test PRIVATE tp_core Qt6::Core Qt6::Test)
 add_test(NAME corebridge COMMAND corebridge_test)
 function(tp_qt_test name)
-  qt_add_executable(${name} tests/${name}.cpp src/TerminalScreen.cpp src/TerminalView.cpp)
+  qt_add_executable(${name} tests/${name}.cpp src/TerminalScreen.cpp src/TerminalView.cpp src/MenuStyle.cpp)
   target_include_directories(${name} PRIVATE src)
-  target_link_libraries(${name} PRIVATE tp_core Qt6::Widgets Qt6::Test)
+  target_link_libraries(${name} PRIVATE tp_core Qt6::Widgets Qt6::Test Qt6::Svg)
   if(APPLE)
     target_link_libraries(${name} PRIVATE "-framework CoreFoundation")
   endif()

@@ -9,33 +9,40 @@
 
 AskAiBar::AskAiBar(TerminalView *view, QWidget *parent)
     : QFrame(parent), m_view(view) {
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     setStyleSheet(QStringLiteral(
-        "AskAiBar { background-color: #0f172a; border-bottom: 1px solid #1e293b; padding: 6px 10px; }"
-        "QLineEdit { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 8px; font-size: 12px; }"
+        "AskAiBar { background-color: #111111; border-bottom: 1px solid #222222; }"
+        "QLineEdit { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-size: 12px; }"
         "QLineEdit:focus { border-color: #38bdf8; }"
-        "QPushButton { background-color: #2563eb; color: #ffffff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 500; }"
+        "QPushButton { background-color: #2563eb; color: #ffffff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 500; }"
         "QPushButton:hover { background-color: #1d4ed8; }"
-        "QToolButton { background: transparent; border: none; color: #64748b; font-size: 14px; }"
-        "QToolButton:hover { color: #f8fafc; }"
+        "QToolButton#aiCloseBtn { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; border-radius: 3px; }"
+        "QToolButton#aiCloseBtn:hover { color: #f8fafc; background-color: #222222; }"
     ));
 
     auto *rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(8, 6, 8, 6);
+    rootLayout->setContentsMargins(10, 6, 10, 6);
     rootLayout->setSpacing(6);
 
     auto *topRow = new QHBoxLayout();
-    topRow->setSpacing(8);
+    topRow->setSpacing(10);
 
     auto *sparkle = new QLabel(QStringLiteral("✨"), this);
+    sparkle->setStyleSheet(QStringLiteral("font-size: 14px;"));
     topRow->addWidget(sparkle);
 
     m_input = new QLineEdit(this);
+    m_input->setFixedHeight(30);
     m_input->setPlaceholderText(QStringLiteral("Ask AI for a command (e.g. find large files, undo last commit)…"));
     connect(m_input, &QLineEdit::returnPressed, this, &AskAiBar::submitPrompt);
     topRow->addWidget(m_input, 1);
 
     m_closeBtn = new QToolButton(this);
+    m_closeBtn->setObjectName(QStringLiteral("aiCloseBtn"));
     m_closeBtn->setText(QStringLiteral("×"));
+    m_closeBtn->setFixedSize(26, 26);
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setToolTip(QStringLiteral("Close (Escape)"));
     connect(m_closeBtn, &QToolButton::clicked, this, &AskAiBar::closeBar);
     topRow->addWidget(m_closeBtn);
 

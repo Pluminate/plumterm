@@ -81,6 +81,9 @@ public:
     bool applicationCursorKeys() const { return m_appCursorKeys; }
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool usingAlternateScreen() const { return m_altActive; }
+    bool mouseTracking() const { return m_mouseTracking != 0; }
+    bool mouseSgr() const { return m_mouseSgr; }
+    bool alternateScroll() const { return m_alternateScroll; }
 
     int scrollbackCount() const { return m_altActive ? 0 : int(m_scrollback.size()); }
 
@@ -163,6 +166,9 @@ private:
     bool m_appCursorKeys = false;
     bool m_autowrap = true;
     bool m_bracketedPaste = false;
+    uint8_t m_mouseTracking = 0;
+    bool m_mouseSgr = false;
+    bool m_alternateScroll = false;
 
     State m_state = State::Ground;
     QByteArray m_csiBuf;

@@ -55,6 +55,7 @@ signals:
     void exited();
     void output(const QByteArray &bytes);  // raw PTY output, for mirroring
     void activated();
+    void splitRequested(bool right);
 
 protected:
     void paintEvent(QPaintEvent *e) override;

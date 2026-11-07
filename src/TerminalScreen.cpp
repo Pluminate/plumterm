@@ -94,6 +94,9 @@ void TerminalScreen::reset() {
     m_appCursorKeys = false;
     m_autowrap = true;
     m_bracketedPaste = false;
+    m_mouseTracking = 0;
+    m_mouseSgr = false;
+    m_alternateScroll = false;
     m_savedPri = {};
     m_savedAlt = {};
     m_state = State::Ground;
@@ -367,6 +370,24 @@ void TerminalScreen::handlePrivateMode(const QByteArray &raw, bool set) {
         case 7: m_autowrap = set; break;
         case 25: m_cursorVisible = set; break;
         case 47:
+        case 1000:
+            if (set) m_mouseTracking |= (1 << 0);
+            else m_mouseTracking &= ~(1 << 0);
+            break;
+        case 1002:
+            if (set) m_mouseTracking |= (1 << 1);
+            else m_mouseTracking &= ~(1 << 1);
+            break;
+        case 1003:
+            if (set) m_mouseTracking |= (1 << 2);
+            else m_mouseTracking &= ~(1 << 2);
+            break;
+        case 1006:
+            m_mouseSgr = set;
+            break;
+        case 1007:
+            m_alternateScroll = set;
+            break;
         case 1047:
             if (set) enterAlternateScreen(false);
             else leaveAlternateScreen();

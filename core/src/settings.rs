@@ -11,7 +11,7 @@ pub fn defaults() -> Map<String, Value> {
     let v = json!({
         "globalHotkey": "CommandOrControl+Shift+T",
         "rerunShortcut": "CommandOrControl+R",
-        "confirmOnQuit": false,
+        "confirmOnQuit": true,
         "excludeDangerousRerun": true,
         "notifyOnCommandEnd": true,
         "notificationThreshold": 120,
@@ -80,6 +80,7 @@ mod tests {
         let m = load_from(&d.join("settings.json"));
         assert_eq!(m["runShortcut"], "CommandOrControl+S");
         assert_eq!(m["notificationThreshold"], 120);
+        assert_eq!(m["confirmOnQuit"], true);
     }
 
     #[test]
@@ -90,8 +91,8 @@ mod tests {
         let m = load_from(&p);
         assert_eq!(m["globalHotkey"], "Alt+Space");
         assert_eq!(m["restoreSession"], true);
-        let after = merge_into(&p, r#"{"confirmOnQuit":true}"#).unwrap();
-        assert_eq!(after["confirmOnQuit"], true);
+        let after = merge_into(&p, r#"{"confirmOnQuit":false}"#).unwrap();
+        assert_eq!(after["confirmOnQuit"], false);
         assert_eq!(after["futureKey"]["a"], 1);
         assert_eq!(load_from(&p)["runCommands"]["/x"], "make");
     }

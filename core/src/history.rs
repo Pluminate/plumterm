@@ -21,14 +21,28 @@ fn read_lines_rev(p: &Path) -> Option<Vec<String>> {
     Some(text.split('\n').rev().map(|s| s.trim_end_matches('\r').to_string()).collect())
 }
 
+fn is_valid_cmd(c: &str) -> bool {
+    let c = c.trim();
+    if c.is_empty() { return false; }
+    if c == "exit" || c == "logout" || c.ends_with("; exit") || c.ends_with("&& exit") { return false; }
+    if c.contains("pl-marker-") || (c.contains("tp-") && c.contains("-done")) { return false; }
+    true
+}
+
 pub fn last_command(home: &Path) -> Option<String> {
     if let Some(lines) = read_lines_rev(&home.join(".zsh_history")) {
         for l in &lines {
-            if let Some(c) = zsh_cmd(l) { let c = c.trim(); if !c.is_empty() { return Some(c.into()); } }
+            if let Some(c) = zsh_cmd(l) {
+                let c = c.trim();
+                if is_valid_cmd(c) { return Some(c.into()); }
+            }
         }
     }
     if let Some(lines) = read_lines_rev(&home.join(".bash_history")) {
-        for l in &lines { let c = l.trim(); if !c.is_empty() { return Some(c.into()); } }
+        for l in &lines {
+            let c = l.trim();
+            if is_valid_cmd(c) { return Some(c.into()); }
+        }
     }
     None
 }

@@ -4,6 +4,7 @@
 #include <QTemporaryDir>
 #include <QWheelEvent>
 #include <QtTest/QtTest>
+#include "MenuStyle.h"
 #include "TerminalView.h"
 
 class TerminalViewTest : public QObject {
@@ -50,6 +51,24 @@ private slots:
         TerminalView v;
         v.feedOutput("\x1b[?1h");
         QCOMPARE(keys(v, Qt::Key_Up), QByteArrayLiteral("\x1bOA"));
+    }
+
+    void mouseTrackingAndSgrModes() {
+        TerminalView v;
+        QVERIFY(!v.screen().mouseTracking());
+        QVERIFY(!v.screen().mouseSgr());
+        QVERIFY(!v.screen().alternateScroll());
+
+        v.feedOutput("\x1b[?1049h\x1b[?1000h\x1b[?1006h");
+        QVERIFY(v.screen().usingAlternateScreen());
+        QVERIFY(v.screen().mouseTracking());
+        QVERIFY(v.screen().mouseSgr());
+        QVERIFY(!v.screen().alternateScroll());
+
+        v.feedOutput("\x1b[?1006l\x1b[?1000l\x1b[?1049l");
+        QVERIFY(!v.screen().usingAlternateScreen());
+        QVERIFY(!v.screen().mouseTracking());
+        QVERIFY(!v.screen().mouseSgr());
     }
 
     void resizeChangesGrid() {
@@ -193,6 +212,83 @@ private slots:
             delete v;
         }
         QTest::qWait(300);  // let exit callbacks run against destroyed views
+    }
+
+    void menuStyleAndSplitSignals() {
+        const auto &dark = MenuStyle::colors(true);
+        QCOMPARE(dark.panel, QColor("#2b2d30"));
+        QCOMPARE(dark.selFill, QColor("#2e436e"));
+        QCOMPARE(dark.selBorder, QColor("#3574f0"));
+
+        QIcon icon = MenuStyle::makeIcon(MenuIcons::kCopy, true);
+        QVERIFY(!icon.isNull());
+        QVERIFY(!MenuStyle::makeIcon(MenuIcons::kSplitRight, true).isNull());
+        QVERIFY(!MenuStyle::makeIcon(MenuIcons::kSplitDown, true).isNull());
+
+        TerminalView v;
+        sized(v, 400, 200);
+
+        QSignalSpy spySplit(&v, &TerminalView::splitRequested);
+        emit v.splitRequested(true);
+        QCOMPARE(spySplit.count(), 1);
+        QCOMPARE(spySplit.at(0).at(0).toBool(), true);
+
+        emit v.splitRequested(false);
+        QCOMPARE(spySplit.count(), 2);
+        QCOMPARE(spySplit.at(1).at(0).toBool(), false);
+
+        QMenu menu;
+        MenuStyle::apply(&menu, true);
+        auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), QStringLiteral("Copy\t⌘C"));
+        copyAct->setEnabled(false);
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), QStringLiteral("Paste\t⌘V"));
+        menu.addSeparator();
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), QStringLiteral("Select All\t⌘A"));
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), QStringLiteral("Clear Terminal\t⌘K"));
+        menu.addSeparator();
+        auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), QStringLiteral("Split Right\t⌘⇧R"));
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), QStringLiteral("Split Down\t⌘⇧D"));
+
+        menu.ensurePolished();
+        menu.adjustSize();
+        const QSize s = menu.sizeHint();
+        QVERIFY(s.width() >= 180);
+        QVERIFY(s.height() > 100);
+
+        QImage img(s, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        menu.render(&img);
+        QVERIFY(!img.isNull());
+        img.save(QStringLiteral("/tmp/menu_render.png"));
+
+        menu.setActiveAction(splitRightAct);
+        img.fill(Qt::transparent);
+        menu.render(&img);
+        img.save(QStringLiteral("/tmp/menu_render_selected.png"));
+
+        // Render Tab Menu
+        QMenu tabMenu;
+        MenuStyle::apply(&tabMenu, true);
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), QStringLiteral("New Tab\t⌘T"));
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), QStringLiteral("New Window\t⌘N"));
+        tabMenu.addSeparator();
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kRename, true), QStringLiteral("Rename Tab…"));
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), QStringLiteral("Duplicate Tab"));
+        tabMenu.addSeparator();
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), QStringLiteral("Close Tab\t⌘W"));
+        tabMenu.addAction(QStringLiteral("Close Other Tabs"));
+        tabMenu.addAction(QStringLiteral("Close All Tabs"));
+        tabMenu.addSeparator();
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), QStringLiteral("Split Right\t⌘⇧R"));
+        tabMenu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), QStringLiteral("Split Down\t⌘⇧D"));
+
+        tabMenu.ensurePolished();
+        tabMenu.adjustSize();
+        const QSize ts = tabMenu.sizeHint();
+        QImage tImg(ts, QImage::Format_ARGB32_Premultiplied);
+        tImg.fill(Qt::transparent);
+        tabMenu.render(&tImg);
+        tImg.save(QStringLiteral("/tmp/tab_menu_render.png"));
     }
 };
 

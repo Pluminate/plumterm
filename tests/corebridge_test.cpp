@@ -15,8 +15,9 @@ private slots:
     void version() { QVERIFY(!CoreBridge::version().isEmpty()); }
     void settingsDefaultsAndMerge() {
         QCOMPARE(CoreBridge::settings().toObject()["runShortcut"].toString(), QString("CommandOrControl+S"));
-        QVERIFY(CoreBridge::setSettings(R"({"confirmOnQuit":true})"));
         QVERIFY(CoreBridge::settings().toObject()["confirmOnQuit"].toBool());
+        QVERIFY(CoreBridge::setSettings(R"({"confirmOnQuit":false})"));
+        QVERIFY(!CoreBridge::settings().toObject()["confirmOnQuit"].toBool());
         QVERIFY(!CoreBridge::setSettings("[1]"));
     }
     void sessionRoundTrip() {

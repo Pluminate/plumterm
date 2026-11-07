@@ -16,12 +16,16 @@ public:
 
     void setActive(bool active);
     void updateStatus();
+    void setTaskStatus(bool running, const QString &command, int exitCode = 0);
 
 signals:
     void splitRequested(bool right);
     void closeRequested();
     void runRequested();
+    void runContextMenuRequested(const QPoint &globalPos);
     void aiRequested();
+    void taskRequested();
+    void taskIndicatorClicked();
     void searchRequested();
     void commitRequested();
 
@@ -39,6 +43,7 @@ private:
     QLabel *m_statsLabel = nullptr;
     QToolButton *m_aiBtn = nullptr;
     QToolButton *m_taskBtn = nullptr;
+    QToolButton *m_taskIndicatorBtn = nullptr;
     QToolButton *m_runBtn = nullptr;
 
     QTimer m_pollTimer;
