@@ -1,5 +1,5 @@
 #pragma once
-// C ABI of the TerminalPro Rust core. Keep in sync with core/src/*.rs.
+// C ABI of the PlumTerm core. Keep in sync with core/src/*.rs.
 // Callbacks run on a reader thread; the host must marshal onto its GUI thread.
 #include <stddef.h>
 #include <stdint.h>

@@ -10,7 +10,7 @@
 
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
-    QApplication::setApplicationName("TerminalPro");
+    QApplication::setApplicationName("PlumTerm");
     MenuStyle::installGlobalHook();
 
     auto *w = new MainWindow();

@@ -25,7 +25,7 @@ TerminalPane::TerminalPane(const QString &cwd, QWidget *parent)
     layout->setSpacing(0);
 
     m_view = new TerminalView(true, this);
-    m_view->setBackground(QColor(0x00, 0x00, 0x00)); // pitch black background like TerminalPro
+    m_view->setBackground(QColor(0x00, 0x00, 0x00)); // pitch black background like PlumTerm
 
     m_header = new PaneHeader(m_view, this);
     layout->addWidget(m_header);

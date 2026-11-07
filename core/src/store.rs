@@ -16,11 +16,11 @@ pub fn data_dir() -> PathBuf {
     } else {
         std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(home).join(".config"))
     };
-    for name in ["TerminalPro", "terminal"] {
+    for name in ["PlumTerm", "TerminalPro", "terminal"] {
         let p = base.join(name);
         if p.join("settings.json").exists() || p.join("session.json").exists() { return p; }
     }
-    base.join("TerminalPro")
+    base.join("PlumTerm")
 }
 
 /// Write via temp file + rename so a crash never leaves a half-written file.

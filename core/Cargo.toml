@@ -1,10 +1,10 @@
 [package]
-name = "terminalpro-core"
+name = "plumterm-core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "terminalpro_core"
+name = "plumterm_core"
 path = "src/lib.rs"
 crate-type = ["staticlib", "rlib"]
 

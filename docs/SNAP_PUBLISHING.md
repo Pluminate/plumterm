@@ -1,6 +1,6 @@
 # Publishing an Electron app to the Snap Store
 
-A reusable checklist, written while publishing TerminalPro. Steps marked ✅ are done for TerminalPro; the rest are filled in as we go.
+A reusable checklist, written while publishing PlumTerm. Steps marked ✅ are done for PlumTerm; the rest are filled in as we go.
 
 ## 0. Prerequisites
 - Ubuntu machine with `snap` installed.

@@ -1,6 +1,6 @@
-# TerminalPro
+# PlumTerm
 
-![TerminalPro](TerminalPro.png)
+![PlumTerm](PlumTerm.png)
 
 A modern, tabbed terminal application built with Electron, React, and node-pty.
 
@@ -22,7 +22,7 @@ A modern, tabbed terminal application built with Electron, React, and node-pty.
 ## Installation (Linux)
 
 ```bash
-sudo snap install terminalpro --classic
+sudo snap install plumterm --classic
 ```
 
 Classic confinement is required so the terminal can run your shell and tools on the host.
@@ -50,7 +50,7 @@ npm run install-app
 If you prefer to drag-and-drop manually and see the "App is damaged" error, run this in your terminal:
 
 ```bash
-xattr -cr /Applications/TerminalPro.app
+xattr -cr /Applications/PlumTerm.app
 ```
 
 ## Development

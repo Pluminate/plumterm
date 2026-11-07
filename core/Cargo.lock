@@ -92,6 +92,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "plumterm-core"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "portable-pty",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "portable-pty"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -220,16 +230,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "terminalpro-core"
-version = "0.1.0"
-dependencies = [
- "libc",
- "portable-pty",
- "serde",
- "serde_json",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@
 #include <QJsonValue>
 #include <QString>
 #include <QStringList>
-#include "terminalpro_core.h"
+#include "plumterm_core.h"
 
 // Thin C++ wrapper over the Rust core C ABI. The only place that talks to it.
 namespace CoreBridge {

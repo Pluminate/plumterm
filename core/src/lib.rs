@@ -1,5 +1,5 @@
-//! TerminalPro core: Rust logic exposed to the Qt shell through a C ABI
-//! (see `../terminalpro_core.h`). Core never references Qt.
+//! PlumTerm core: Rust logic exposed to the Qt shell through a C ABI
+//! (see `../plumterm_core.h`). Core never references Qt.
 
 pub mod ai;
 pub mod git;
