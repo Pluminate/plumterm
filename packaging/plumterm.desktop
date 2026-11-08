@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=PlumTerm
+Comment=Terminal emulator
+Exec=plumterm
+Icon=plumterm
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=plumterm

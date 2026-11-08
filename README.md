@@ -21,7 +21,15 @@ A modern, tabbed terminal application built with Qt 6 and Rust.
 
 ## Installation
 
-Prebuilt packages are not published yet, so PlumTerm is currently installed from source.
+### Debian / Ubuntu
+
+Download the latest `.deb` from the [Releases](https://github.com/pluminate/plumterm/releases) page and install it:
+
+```bash
+sudo apt install ./plumterm_*.deb
+```
+
+Otherwise, install from source:
 
 ### macOS
 
