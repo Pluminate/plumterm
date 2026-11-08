@@ -144,12 +144,20 @@ void MainWindow::setupMenuBar() {
     auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->copySelection();
     });
+#ifdef Q_OS_MACOS
     copyAct->setShortcut(QKeySequence::Copy);
+#else
+    copyAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+C")));  // plain Ctrl+C must reach the shell (SIGINT)
+#endif
 
     auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->pasteClipboard();
     });
+#ifdef Q_OS_MACOS
     pasteAct->setShortcut(QKeySequence::Paste);
+#else
+    pasteAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+V")));
+#endif
 
     auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->selectAllText();

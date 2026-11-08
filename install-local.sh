@@ -6,6 +6,48 @@ BUILD_DIR="$ROOT/build"
 APP_NAME="PlumTerm.app"
 DEST_DIR="${1:-/Applications}"
 
+OS="$(uname -s)"
+case "$OS" in
+  Darwin) ;;
+  Linux)
+    # Build and install the binary under ~/.local (or $1 as prefix).
+    PREFIX="${1:-$HOME/.local}"
+    for tool in cmake ninja cargo; do
+      command -v "$tool" >/dev/null || {
+        echo "error: $tool not found. On Debian/Ubuntu: sudo apt install cmake ninja-build qt6-base-dev qt6-svg-dev libgl1-mesa-dev (and rustup for cargo)" >&2
+        exit 1
+      }
+    done
+    echo "==> Configuring & Building PlumTerm..."
+    cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release
+    cmake --build "$BUILD_DIR" --target plumterm
+    mkdir -p "$PREFIX/bin"
+    install -m 755 "$BUILD_DIR/plumterm" "$PREFIX/bin/plumterm"
+    echo "==> Successfully installed to $PREFIX/bin/plumterm"
+    exit 0
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    # Windows via Git Bash/MSYS2. Set QT_DIR to your Qt prefix (e.g. C:/Qt/6.7.0/msvc2019_64).
+    DEST="${1:-${LOCALAPPDATA:-$HOME/AppData/Local}/PlumTerm}"
+    for tool in cmake ninja cargo; do
+      command -v "$tool" >/dev/null || { echo "error: $tool not found in PATH (run from a VS Developer shell)." >&2; exit 1; }
+    done
+    [ -n "${QT_DIR:-}" ] || { echo "error: set QT_DIR to your Qt 6 install prefix." >&2; exit 1; }
+    echo "==> Configuring & Building PlumTerm..."
+    cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_DIR"
+    cmake --build "$BUILD_DIR" --target plumterm
+    BIN="$BUILD_DIR/plumterm.exe"
+    [ -f "$BIN" ] || { echo "error: $BIN not found." >&2; exit 1; }
+    mkdir -p "$DEST"
+    cp "$BIN" "$DEST/plumterm.exe"
+    echo "==> Bundling Qt libraries with windeployqt..."
+    "$QT_DIR/bin/windeployqt.exe" "$DEST/plumterm.exe" >/dev/null 2>&1 || echo "warning: windeployqt failed; DLLs not bundled." >&2
+    echo "==> Successfully installed to $DEST/plumterm.exe"
+    exit 0
+    ;;
+  *) echo "error: unsupported OS: $OS" >&2; exit 1 ;;
+esac
+
 echo "==> Configuring & Building PlumTerm..."
 QT_DIR="$(brew --prefix qt)"
 cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_DIR"

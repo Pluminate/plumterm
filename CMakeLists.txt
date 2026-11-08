@@ -8,7 +8,11 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test Svg)
 
 # Rust core -> static library driven by cargo
 set(TP_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
-set(TP_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/cargo/release/libplumterm_core.a)
+if(MSVC)
+  set(TP_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/cargo/release/plumterm_core.lib)
+else()
+  set(TP_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/cargo/release/libplumterm_core.a)
+endif()
 file(GLOB TP_CORE_RS ${TP_CORE_DIR}/src/*.rs)
 add_custom_command(
   OUTPUT ${TP_CORE_LIB}

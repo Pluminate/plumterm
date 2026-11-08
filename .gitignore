@@ -11,3 +11,9 @@ core/target/
 PLAN.md
 test-commit.md
 test-file.md
+
+# Electron-era build output
+/dist/
+/client/
+/node_modules/
+/out/
