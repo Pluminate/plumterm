@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.21)
 project(plumterm LANGUAGES CXX)
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 enable_testing()
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test Svg)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Test Svg Network)
 
 # Rust core -> static library driven by cargo
 set(TP_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
@@ -41,10 +44,28 @@ set(TP_SOURCES
   src/CommitDialog.cpp src/CommitDialog.h
   src/SettingsDialog.cpp src/SettingsDialog.h
   src/MainWindow.cpp src/MainWindow.h
+  src/GlobalHotkey.cpp src/GlobalHotkey.h
 )
+
+# Global show/hide hotkey backend.
+if(APPLE)
+  list(APPEND TP_SOURCES src/GlobalHotkey_mac.mm)
+  set(TP_HOTKEY_LIBS "-framework Carbon" "-framework AppKit")
+elseif(UNIX)
+  find_package(X11)
+  if(X11_FOUND AND X11_Xkb_FOUND)
+    list(APPEND TP_SOURCES src/GlobalHotkey_x11.cpp)
+    set(TP_HOTKEY_LIBS X11::X11)
+  else()
+    message(WARNING "libX11 not found: global hotkey disabled (plumterm --toggle still works)")
+    list(APPEND TP_SOURCES src/GlobalHotkey_none.cpp)
+  endif()
+else()
+  list(APPEND TP_SOURCES src/GlobalHotkey_none.cpp)
+endif()
 qt_add_executable(plumterm src/main.cpp ${TP_SOURCES})
 target_include_directories(plumterm PRIVATE src)
-target_link_libraries(plumterm PRIVATE plumterm_core Qt6::Widgets Qt6::Concurrent Qt6::Svg)
+target_link_libraries(plumterm PRIVATE plumterm_core Qt6::Widgets Qt6::Concurrent Qt6::Svg Qt6::Network ${TP_HOTKEY_LIBS})
 if(APPLE)
   target_link_libraries(plumterm PRIVATE "-framework CoreFoundation")
 endif()

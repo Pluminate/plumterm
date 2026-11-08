@@ -4,8 +4,10 @@
 #include <QGroupBox>
 #include <QJsonObject>
 #include <QLabel>
+#include <QMessageBox>
 #include <QVBoxLayout>
 #include "CoreBridge.h"
+#include "GlobalHotkey.h"
 
 SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent) {
     setWindowTitle(QStringLiteral("Settings"));
@@ -35,7 +37,14 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent) {
     auto *shortcutsLayout = new QFormLayout(shortcutsBox);
 
     m_hotkeyEdit = new QLineEdit(s.value(QStringLiteral("globalHotkey")).toString(), shortcutsBox);
+    m_hotkeyEdit->setPlaceholderText(QStringLiteral("e.g. CommandOrControl+Shift+T, Alt+Space"));
     shortcutsLayout->addRow(QStringLiteral("Global Hotkey:"), m_hotkeyEdit);
+    auto *hotkeyHint = new QLabel(QStringLiteral(
+        "Shows/hides PlumTerm from any app. Takes priority over in-app shortcuts "
+        "(e.g. Cmd+3 would stop switching to tab 3). Leave empty to disable."), shortcutsBox);
+    hotkeyHint->setWordWrap(true);
+    hotkeyHint->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    shortcutsLayout->addRow(QString(), hotkeyHint);
 
     m_rerunEdit = new QLineEdit(s.value(QStringLiteral("rerunShortcut")).toString(), shortcutsBox);
     shortcutsLayout->addRow(QStringLiteral("Rerun Shortcut:"), m_rerunEdit);
@@ -89,6 +98,13 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent) {
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, [this] {
+        const QString hotkey = m_hotkeyEdit->text().trimmed();
+        QString error;
+        if (!hotkey.isEmpty() && !GlobalHotkey::parse(hotkey, nullptr, &error)) {
+            QMessageBox::warning(this, QStringLiteral("Global Hotkey"), error);
+            m_hotkeyEdit->setFocus();
+            return;
+        }
         save();
         accept();
     });

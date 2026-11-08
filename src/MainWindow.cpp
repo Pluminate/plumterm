@@ -12,6 +12,7 @@
 #include <QShortcut>
 #include <QVBoxLayout>
 #include "CoreBridge.h"
+#include "GlobalHotkey.h"
 #include "MenuStyle.h"
 #include "SettingsDialog.h"
 #include "TabBar.h"
@@ -295,16 +296,6 @@ void MainWindow::closeAllTabs() {
 }
 
 void MainWindow::setupShortcuts() {
-    new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+T")), this, [this] {
-        if (isMinimized() || !isVisible()) {
-            showNormal();
-            raise();
-            activateWindow();
-        } else {
-            hide();
-        }
-    });
-
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
         const int curIdx = m_stack->currentIndex();
@@ -478,7 +469,15 @@ void MainWindow::rerunLastCommand() {
 
 void MainWindow::openSettings() {
     SettingsDialog dlg(this);
-    dlg.exec();
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    const QString hotkey = CoreBridge::settings().toObject().value(QStringLiteral("globalHotkey")).toString().trimmed();
+    if (hotkey == GlobalHotkey::instance()->shortcut()) return;
+    QString error;
+    if (!GlobalHotkey::instance()->setShortcut(hotkey, &error)) {
+        QMessageBox::warning(this, tr("Global Hotkey"),
+                             tr("Couldn't register \"%1\" as the global hotkey.\n\n%2").arg(hotkey, error));
+    }
 }
 
 MainWindow::TabInfo *MainWindow::currentTabInfo() {
