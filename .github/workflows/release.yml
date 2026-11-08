@@ -35,6 +35,7 @@ jobs:
     runs-on: macos-14
     # Secrets live in the "release" Environment (restrict it to v* tags in repo settings).
     environment: release
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -79,7 +80,7 @@ jobs:
           API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
           echo "$API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
-          xcrun notarytool submit "$DMG" --wait --timeout 30m \
+          xcrun notarytool submit "$DMG" --wait --timeout 150m \
             --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
           rm -f "$RUNNER_TEMP/AuthKey.p8"
           xcrun stapler staple "$DMG"
