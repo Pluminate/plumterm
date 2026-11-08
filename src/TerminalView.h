@@ -73,6 +73,8 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
+    void dragEnterEvent(QDragEnterEvent *e) override;
+    void dropEvent(QDropEvent *e) override;
 
 private:
     struct Ctx;  // heap state handed to the PTY callbacks

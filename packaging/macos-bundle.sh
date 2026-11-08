@@ -56,5 +56,23 @@ for rp in $(otool -l "$APP/Contents/MacOS/plumterm" | awk '/LC_RPATH/{f=1} f&&/p
   install_name_tool -delete_rpath "$rp" "$APP/Contents/MacOS/plumterm" 2>/dev/null || true
 done
 
-echo "==> Signing ad-hoc..."
-codesign --force --deep --sign - "$APP"
+# SIGN_IDENTITY="Developer ID Application: ..." -> hardened runtime + timestamp (notarizable).
+# Unset -> ad-hoc signature (local use only).
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+  echo "==> Signing with: $SIGN_IDENTITY"
+  FLAGS=(--force --options runtime --timestamp --sign "$SIGN_IDENTITY")
+  [ -n "${SIGN_KEYCHAIN:-}" ] && FLAGS+=(--keychain "$SIGN_KEYCHAIN")
+  # Sign nested code first (inside-out); --deep is not reliable for notarization.
+  while IFS= read -r f; do
+    codesign "${FLAGS[@]}" "$f"
+  done < <(find "$APP/Contents" \( -name '*.dylib' -o -name '*.so' \) -type f)
+  while IFS= read -r f; do
+    codesign "${FLAGS[@]}" "$f"
+  done < <(find "$APP/Contents/Frameworks" -name '*.framework' -maxdepth 1 2>/dev/null)
+  codesign "${FLAGS[@]}" "$APP/Contents/MacOS/plumterm"
+  codesign "${FLAGS[@]}" "$APP"
+  codesign --verify --deep --strict --verbose=2 "$APP"
+else
+  echo "==> Signing ad-hoc..."
+  codesign --force --deep --sign - "$APP"
+fi

@@ -2,9 +2,14 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QMimeData>
 #include <QContextMenuEvent>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QImage>
+#include <QDateTime>
 #include <QFontMetricsF>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -50,6 +55,7 @@ TerminalView::TerminalView(bool dark, QWidget *parent) : QWidget(parent), m_dark
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setMouseTracking(true);
     setCursor(Qt::IBeamCursor);
+    setAcceptDrops(true);
 
     m_font = QFont(QStringLiteral("Menlo"));
     m_font.setStyleHint(QFont::Monospace);
@@ -430,8 +436,17 @@ void TerminalView::copySelection() {
 }
 
 void TerminalView::pasteClipboard() {
+    const QMimeData *mime = QApplication::clipboard()->mimeData();
     QString text = QApplication::clipboard()->text();
-    if (text.isEmpty()) return;
+    if (text.isEmpty()) {
+        // Image-only clipboard (e.g. a screenshot): a terminal can't paste pixels, so forward Ctrl+V
+        // and let the app (Claude Code, etc.) read the clipboard image itself.
+        if (mime && mime->hasImage()) {
+            m_scrollOffset = 0;
+            sendInput(QByteArrayLiteral("\x16"));
+        }
+        return;
+    }
     text.replace(QStringLiteral("\r\n"), QStringLiteral("\r"));
     text.replace(QLatin1Char('\n'), QLatin1Char('\r'));
     QByteArray payload = text.toUtf8();
@@ -775,6 +790,44 @@ void TerminalView::contextMenuEvent(QContextMenuEvent *e) {
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.exec(e->globalPos());
+}
+
+static QString shellQuote(const QString &path) {
+    static const QRegularExpression unsafe(QStringLiteral("[^A-Za-z0-9_@%+=:,./~-]"));
+    if (!path.contains(unsafe)) return path;
+    QString q = path;
+    q.replace(QLatin1Char('\''), QStringLiteral("'\\''"));
+    return QLatin1Char('\'') + q + QLatin1Char('\'');
+}
+
+void TerminalView::dragEnterEvent(QDragEnterEvent *e) {
+    const QMimeData *m = e->mimeData();
+    if (m->hasUrls() || m->hasImage() || m->hasText()) e->acceptProposedAction();
+}
+
+// Like other terminals: dropped files insert their (shell-quoted) paths; raw image data is saved to a temp PNG first.
+void TerminalView::dropEvent(QDropEvent *e) {
+    const QMimeData *m = e->mimeData();
+    QStringList parts;
+    if (m->hasUrls()) {
+        for (const QUrl &u : m->urls()) parts << shellQuote(u.isLocalFile() ? u.toLocalFile() : u.toString());
+    } else if (m->hasImage()) {
+        const QImage img = qvariant_cast<QImage>(m->imageData());
+        const QString path = QDir::temp().filePath(QStringLiteral("plumterm-drop-%1.png").arg(QDateTime::currentMSecsSinceEpoch()));
+        if (!img.isNull() && img.save(path, "PNG")) parts << shellQuote(path);
+    } else if (m->hasText()) {
+        parts << m->text();
+    }
+    if (parts.isEmpty()) return;
+    QByteArray payload = (parts.join(QLatin1Char(' ')) + QLatin1Char(' ')).toUtf8();
+    if (m_screen.bracketedPaste()) {
+        payload.prepend("\x1b[200~");
+        payload.append("\x1b[201~");
+    }
+    m_scrollOffset = 0;
+    setFocus();
+    sendInput(payload);
+    e->acceptProposedAction();
 }
 
 // ---- Search / text helpers --------------------------------------------------------------------------------------------
