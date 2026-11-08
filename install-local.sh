@@ -24,6 +24,25 @@ case "$OS" in
     mkdir -p "$PREFIX/bin"
     install -m 755 "$BUILD_DIR/plumterm" "$PREFIX/bin/plumterm"
     echo "==> Successfully installed to $PREFIX/bin/plumterm"
+    # Register in the desktop app launcher.
+    DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+    mkdir -p "$DATA/applications" "$DATA/icons/hicolor/512x512/apps"
+    install -m 644 "$ROOT/PlumTerm.png" "$DATA/icons/hicolor/512x512/apps/plumterm.png"
+    cat > "$DATA/applications/plumterm.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=PlumTerm
+Comment=Terminal emulator
+Exec=$PREFIX/bin/plumterm
+Icon=plumterm
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=plumterm
+DESKTOP
+    command -v update-desktop-database >/dev/null && update-desktop-database "$DATA/applications" 2>/dev/null || true
+    command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -qf "$DATA/icons/hicolor" 2>/dev/null || true
+    echo "==> Registered launcher: $DATA/applications/plumterm.desktop"
+    case ":$PATH:" in *":$PREFIX/bin:"*) ;; *) echo "note: $PREFIX/bin is not in your PATH" >&2 ;; esac
     exit 0
     ;;
   MINGW*|MSYS*|CYGWIN*)
