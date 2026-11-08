@@ -31,11 +31,7 @@ sudo apt install ./plumterm_*.deb
 
 ### macOS
 
-Download the latest `PlumTerm-*-arm64.dmg` (Apple Silicon) from the [Releases](https://github.com/pluminate/plumterm/releases) page, open it and drag PlumTerm into Applications. The app is ad-hoc signed, not notarized, so on first launch macOS will block it; clear the quarantine flag once:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/PlumTerm.app
-```
+Download the latest `PlumTerm-*-arm64.dmg` (Apple Silicon) from the [Releases](https://github.com/pluminate/plumterm/releases) page, open it and drag PlumTerm into Applications. The app is signed and notarized by Apple.
 
 ### From source (macOS)
 
