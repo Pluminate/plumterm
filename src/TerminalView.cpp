@@ -102,7 +102,7 @@ void TerminalView::spawnIfReady() {
 }
 
 // Reader thread -> GUI thread.
-void TerminalView::onData(void *user, quint64, const quint8 *data, size_t len) {
+void TerminalView::onData(void *user, uint64_t, const uint8_t *data, size_t len) {
     auto *ctx = static_cast<Ctx *>(user);
     QPointer<TerminalView> v = ctx->view;
     if (!v) return;
@@ -110,7 +110,7 @@ void TerminalView::onData(void *user, quint64, const quint8 *data, size_t len) {
     QMetaObject::invokeMethod(v.data(), [v, bytes] { if (v) v->feedOutput(bytes); }, Qt::QueuedConnection);
 }
 
-void TerminalView::onExit(void *user, quint64) {
+void TerminalView::onExit(void *user, uint64_t) {
     auto *ctx = static_cast<Ctx *>(user);
     QPointer<TerminalView> v = ctx->view;
     delete ctx;

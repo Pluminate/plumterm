@@ -31,7 +31,7 @@ inline QByteArray u8(const QString &s) { return s.toUtf8(); }
 }
 
 // --- pty ---
-inline QString ptyCwd(quint64 id) { return QString::fromUtf8(detail::take(tp_pty_cwd(id))); }
+inline QString ptyCwd(uint64_t id) { return QString::fromUtf8(detail::take(tp_pty_cwd(id))); }
 
 // --- settings / session ---
 inline QJsonValue settings() { return detail::takeJson(tp_settings_get_json()); }

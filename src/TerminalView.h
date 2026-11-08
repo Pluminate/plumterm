@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <QFont>
 #include <QPoint>
 #include <QTimer>
@@ -75,8 +76,8 @@ protected:
 
 private:
     struct Ctx;  // heap state handed to the PTY callbacks
-    static void onData(void *user, quint64 id, const quint8 *data, size_t len);
-    static void onExit(void *user, quint64 id);
+    static void onData(void *user, uint64_t id, const uint8_t *data, size_t len);
+    static void onExit(void *user, uint64_t id);
 
     void updateMetrics();
     void recalculateGridSize();
@@ -98,7 +99,7 @@ private:
 
     QString m_pendingCwd;
     bool m_startRequested = false;
-    quint64 m_pty = 0;
+    uint64_t m_pty = 0;
     Ctx *m_ctx = nullptr;
 
     int m_scrollOffset = 0;  // 0 = live; >0 = lines scrolled back
