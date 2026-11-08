@@ -32,7 +32,7 @@ jobs:
           path: dist/*.deb
 
   dmg:
-    runs-on: macos-14
+    runs-on: macos-15
     # Secrets live in the "release" Environment (restrict it to v* tags in repo settings).
     environment: release
     timeout-minutes: 180
