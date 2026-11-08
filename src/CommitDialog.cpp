@@ -72,6 +72,7 @@ CommitDialog::CommitDialog(const QString &cwd, QWidget *parent)
     rootLayout->addWidget(m_msgEdit);
 
     auto *optRow = new QHBoxLayout();
+    optRow->setSpacing(24);  // keep "Pull first" from butting against the previous label
     m_pushCheck = new QCheckBox(QStringLiteral("Push after commit"), this);
     m_pushCheck->setChecked(true);
     optRow->addWidget(m_pushCheck);
