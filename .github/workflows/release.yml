@@ -10,7 +10,14 @@ permissions:
 
 jobs:
   deb:
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -28,11 +35,19 @@ jobs:
           cpack --config build/CPackConfig.cmake -B dist
       - uses: actions/upload-artifact@v4
         with:
-          name: deb
+          name: deb-${{ matrix.arch }}
           path: dist/*.deb
 
   dmg:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     # Secrets live in the "release" Environment (restrict it to v* tags in repo settings).
     environment: release
     timeout-minutes: 180
@@ -90,7 +105,7 @@ jobs:
         run: security delete-keychain "$SIGN_KEYCHAIN" || true
       - uses: actions/upload-artifact@v4
         with:
-          name: dmg
+          name: dmg-${{ matrix.arch }}
           path: dist/*.dmg
 
   release:

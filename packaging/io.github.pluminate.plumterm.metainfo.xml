@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.pluminate.plumterm</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>PlumTerm</name>
+  <summary>PlumTerm terminal emulator</summary>
+  <description>
+    <p>PlumTerm is a fast terminal emulator.</p>
+  </description>
+  <launchable type="desktop-id">plumterm.desktop</launchable>
+  <icon type="stock">plumterm</icon>
+  <url type="homepage">https://github.com/Pluminate/plumterm</url>
+  <developer id="io.github.pluminate"><name>Pluminate</name></developer>
+  <provides><binary>plumterm</binary></provides>
+</component>
