@@ -30,9 +30,44 @@ jobs:
         with:
           name: deb
           path: dist/*.deb
+
+  dmg:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install qt ninja
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build .dmg
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = tag ] || VERSION=0.0.0
+          QT_DIR="$(brew --prefix qt)"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_DIR"
+          cmake --build build --target plumterm
+          mkdir -p stage dist
+          QT_DIR="$QT_DIR" packaging/macos-bundle.sh build stage "$VERSION"
+          ln -s /Applications stage/Applications
+          hdiutil create -volname PlumTerm -srcfolder stage -ov -format UDZO \
+            "dist/PlumTerm-${VERSION}-$(uname -m).dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: dist/*.dmg
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [deb, dmg]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Attach to GitHub release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.deb
+          files: |
+            dist/*.deb
+            dist/*.dmg
           generate_release_notes: true

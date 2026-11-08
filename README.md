@@ -29,9 +29,15 @@ Download the latest `.deb` from the [Releases](https://github.com/pluminate/plum
 sudo apt install ./plumterm_*.deb
 ```
 
-Otherwise, install from source:
-
 ### macOS
+
+Download the latest `PlumTerm-*-arm64.dmg` (Apple Silicon) from the [Releases](https://github.com/pluminate/plumterm/releases) page, open it and drag PlumTerm into Applications. The app is ad-hoc signed, not notarized, so on first launch macOS will block it; clear the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/PlumTerm.app
+```
+
+### From source (macOS)
 
 ```bash
 brew install qt cmake ninja
