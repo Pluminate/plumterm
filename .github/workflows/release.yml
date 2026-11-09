@@ -98,7 +98,12 @@ jobs:
           xcrun notarytool submit "$DMG" --wait --timeout 150m \
             --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
           rm -f "$RUNNER_TEMP/AuthKey.p8"
-          xcrun stapler staple "$DMG"
+          # Stapling fetches the ticket from Apple's CloudKit; retry transient network errors.
+          for i in 1 2 3 4 5; do
+            xcrun stapler staple "$DMG" && break
+            [ "$i" = 5 ] && exit 1
+            echo "stapler failed (attempt $i), retrying in 20s"; sleep 20
+          done
           spctl -a -vv -t open --context context:primary-signature "$DMG"
       - name: Remove signing keychain
         if: always()
