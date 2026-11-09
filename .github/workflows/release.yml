@@ -119,7 +119,8 @@ jobs:
           path: dist/*.dmg
 
   release:
-    if: github.ref_type == 'tag'
+    # Publish whatever built: a flaky Mac build must not block the Linux packages.
+    if: ${{ always() && github.ref_type == 'tag' && needs.deb.result == 'success' }}
     needs: [deb, dmg]
     runs-on: ubuntu-24.04
     steps:
