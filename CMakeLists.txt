@@ -114,6 +114,11 @@ set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Pluminate/plumterm")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "PlumTerm terminal emulator")
 set(CPACK_GENERATOR DEB)
 set(CPACK_DEBIAN_PACKAGE_SECTION utils)
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+# Hand-written deps so one build installs on every Ubuntu/Debian release:
+# Qt libs were renamed with/without the t64 suffix between releases, which
+# auto-generated (shlibdeps) dependencies can't express as alternatives.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+  "libc6, libstdc++6, libgcc-s1, libgl1, libx11-6, libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6network6t64 | libqt6network6, libqt6svg6")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 include(CPack)
