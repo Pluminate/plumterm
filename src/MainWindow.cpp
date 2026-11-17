@@ -80,6 +80,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         }
     });
 
+    connect(m_tabBar, &TabBar::tabMoved, this, [this](int fromIndex, int toIndex) {
+        if (fromIndex >= 0 && fromIndex < m_tabs.size() && toIndex >= 0 && toIndex < m_tabs.size()) {
+            m_tabs.move(fromIndex, toIndex);
+        }
+    });
     connect(m_tabBar, &TabBar::tabCloseRequested, this, &MainWindow::closeTab);
     connect(m_tabBar, &TabBar::newTabRequested, this, [this] { newTab(); });
     connect(m_tabBar, &TabBar::newWindowRequested, this, [this] { newWindow(); });
@@ -196,14 +201,14 @@ void MainWindow::setupMenuBar() {
 
     viewMenu->addAction(tr("Next Tab\t⌃Tab"), this, [this] {
         if (m_tabs.size() <= 1) return;
-        const int curIdx = m_stack->currentIndex();
+        const int curIdx = currentTabIndex();
         const int nextIdx = (curIdx + 1) % m_tabs.size();
         m_tabBar->setActiveTab(m_tabs[nextIdx].id);
     });
 
     viewMenu->addAction(tr("Previous Tab\t⌃⇧Tab"), this, [this] {
         if (m_tabs.size() <= 1) return;
-        const int curIdx = m_stack->currentIndex();
+        const int curIdx = currentTabIndex();
         const int prevIdx = (curIdx - 1 + m_tabs.size()) % m_tabs.size();
         m_tabBar->setActiveTab(m_tabs[prevIdx].id);
     });
@@ -298,14 +303,14 @@ void MainWindow::closeAllTabs() {
 void MainWindow::setupShortcuts() {
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
-        const int curIdx = m_stack->currentIndex();
+        const int curIdx = currentTabIndex();
         const int nextIdx = (curIdx + 1) % m_tabs.size();
         m_tabBar->setActiveTab(m_tabs[nextIdx].id);
     });
 
     new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+Tab")), this, [this] {
         if (m_tabs.size() <= 1) return;
-        const int curIdx = m_stack->currentIndex();
+        const int curIdx = currentTabIndex();
         const int prevIdx = (curIdx - 1 + m_tabs.size()) % m_tabs.size();
         m_tabBar->setActiveTab(m_tabs[prevIdx].id);
     });
@@ -463,7 +468,7 @@ void MainWindow::closeActivePane() {
 
 void MainWindow::rerunLastCommand() {
     if (m_activePane) {
-        m_activePane->runLastCommand();
+        m_activePane->rerunLastTypedCommand();
     }
 }
 
@@ -478,6 +483,14 @@ void MainWindow::openSettings() {
         QMessageBox::warning(this, tr("Global Hotkey"),
                              tr("Couldn't register \"%1\" as the global hotkey.\n\n%2").arg(hotkey, error));
     }
+}
+
+int MainWindow::currentTabIndex() const {
+    const int activeId = m_tabBar ? m_tabBar->activeTabId() : -1;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].id == activeId) return i;
+    }
+    return 0;
 }
 
 MainWindow::TabInfo *MainWindow::currentTabInfo() {

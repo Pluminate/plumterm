@@ -1,4 +1,5 @@
 #include "TabBar.h"
+#include <QApplication>
 #include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -17,6 +18,7 @@ TabItem::TabItem(int id, const QString &title, QWidget *parent)
 
     m_label = new QLabel(title, this);
     m_label->setAlignment(Qt::AlignCenter);
+    m_label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     layout->addWidget(m_label, 1);
 
     m_edit = new QLineEdit(this);
@@ -70,10 +72,55 @@ void TabItem::setCloseable(bool closeable) {
 void TabItem::mousePressEvent(QMouseEvent *e) {
     if (e->button() == Qt::LeftButton) {
         emit selected(m_id);
+        if (!m_edit || !m_edit->isVisible()) {
+            m_pressing = true;
+            m_dragging = false;
+            m_dragStartPos = e->globalPosition().toPoint();
+        }
+        e->accept();
+        return;
     } else if (e->button() == Qt::MiddleButton) {
         emit closeRequested(m_id);
+        e->accept();
+        return;
     }
     QFrame::mousePressEvent(e);
+}
+
+void TabItem::mouseMoveEvent(QMouseEvent *e) {
+    if (!m_pressing || !(e->buttons() & Qt::LeftButton) || (m_edit && m_edit->isVisible())) {
+        QFrame::mouseMoveEvent(e);
+        return;
+    }
+
+    const QPoint globalPos = e->globalPosition().toPoint();
+    if (!m_dragging) {
+        if ((globalPos - m_dragStartPos).manhattanLength() >= QApplication::startDragDistance()) {
+            m_dragging = true;
+            setCursor(Qt::ClosedHandCursor);
+        }
+    }
+
+    if (m_dragging) {
+        emit dragMoved(m_id, globalPos);
+        e->accept();
+        return;
+    }
+
+    QFrame::mouseMoveEvent(e);
+}
+
+void TabItem::mouseReleaseEvent(QMouseEvent *e) {
+    if (e->button() == Qt::LeftButton) {
+        m_pressing = false;
+        if (m_dragging) {
+            m_dragging = false;
+            setCursor(Qt::PointingHandCursor);
+            e->accept();
+            return;
+        }
+    }
+    QFrame::mouseReleaseEvent(e);
 }
 
 void TabItem::contextMenuEvent(QContextMenuEvent *e) {
@@ -175,6 +222,7 @@ int TabBar::addTab(const QString &title) {
     connect(item, &TabItem::selected, this, &TabBar::setActiveTab);
     connect(item, &TabItem::closeRequested, this, &TabBar::tabCloseRequested);
     connect(item, &TabItem::contextMenuRequested, this, &TabBar::showTabMenu);
+    connect(item, &TabItem::dragMoved, this, &TabBar::handleTabDrag);
 
     updateTabStyles();
     setActiveTab(id);
@@ -197,6 +245,64 @@ void TabBar::removeTab(int id) {
         } else {
             m_activeId = -1;
         }
+    }
+}
+
+void TabBar::moveTab(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || fromIndex >= m_tabs.size() ||
+        toIndex < 0 || toIndex >= m_tabs.size() ||
+        fromIndex == toIndex) {
+        return;
+    }
+
+    TabItem *item = m_tabs.at(fromIndex);
+    m_tabs.move(fromIndex, toIndex);
+    m_tabLayout->removeWidget(item);
+    m_tabLayout->insertWidget(toIndex, item, 1);
+    m_tabLayout->activate();
+    if (layout()) layout()->activate();
+
+    updateTabStyles();
+    emit tabMoved(fromIndex, toIndex);
+}
+
+int TabBar::tabIdAt(int index) const {
+    if (index < 0 || index >= m_tabs.size()) return -1;
+    return m_tabs.at(index)->id();
+}
+
+int TabBar::indexOfTab(int id) const {
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i]->id() == id) return i;
+    }
+    return -1;
+}
+
+void TabBar::handleTabDrag(int id, const QPoint &globalPos) {
+    if (m_tabs.size() <= 1) return;
+    const int fromIndex = indexOfTab(id);
+    if (fromIndex < 0) return;
+
+    const int x = mapFromGlobal(globalPos).x();
+    const int fromCenter = m_tabs[fromIndex]->geometry().center().x();
+
+    int toIndex = fromIndex;
+    if (x > fromCenter) {
+        for (int i = fromIndex + 1; i < m_tabs.size(); ++i) {
+            if (x > m_tabs[i]->geometry().center().x()) {
+                toIndex = i;
+            }
+        }
+    } else if (x < fromCenter) {
+        for (int i = fromIndex - 1; i >= 0; --i) {
+            if (x < m_tabs[i]->geometry().center().x()) {
+                toIndex = i;
+            }
+        }
+    }
+
+    if (toIndex != fromIndex) {
+        moveTab(fromIndex, toIndex);
     }
 }
 

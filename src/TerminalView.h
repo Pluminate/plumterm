@@ -40,6 +40,8 @@ public:
     bool hasSelection() const { return m_hasSelection; }
     QString selectedText() const;
     int scrollOffset() const { return m_scrollOffset; }
+    // Last command line the user submitted with Enter in this terminal (empty if none yet).
+    QString lastTypedCommand() const { return m_lastTypedCommand; }
 
     // Search scrollback + screen; selects and scrolls to the match. Wraps around once.
     bool find(const QString &needle, bool backward = false, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
@@ -106,6 +108,11 @@ private:
 
     int m_scrollOffset = 0;  // 0 = live; >0 = lines scrolled back
     qreal m_wheelCarry = 0.0;
+
+    void trackTypedInput(const QByteArray &bytes);
+    QString m_lineBuf;
+    bool m_lineDirty = false;  // line was edited with keys we don't model (history recall, tab completion...)
+    QString m_lastTypedCommand;
 
     bool m_selecting = false;
     bool m_hasSelection = false;

@@ -19,6 +19,7 @@
 #include <QPointer>
 #include <QRegularExpression>
 #include <QUrl>
+#include <QTimer>
 #include <QWheelEvent>
 #include <algorithm>
 #include <atomic>
@@ -128,6 +129,38 @@ void TerminalView::onExit(void *user, uint64_t) {
         v->feedOutput(QByteArrayLiteral("\r\n\x1b[90m[Process completed - Press Enter to restart shell]\x1b[0m\r\n"));
         emit v->exited();
     }, Qt::QueuedConnection);
+}
+
+void TerminalView::trackTypedInput(const QByteArray &bytes) {
+    if (m_screen.usingAlternateScreen()) { m_lineBuf.clear(); m_lineDirty = false; return; }
+    const QString text = QString::fromUtf8(bytes);
+    for (const QChar ch : text) {
+        const ushort c = ch.unicode();
+        if (c == '\r' || c == '\n') {
+            if (m_lineDirty) {
+                // History recall / completion was used: the typed buffer is unreliable, ask the shell history.
+                QPointer<TerminalView> self(this);
+                QTimer::singleShot(400, this, [self] {
+                    if (!self) return;
+                    const QString c = CoreBridge::lastShellCommand().trimmed();
+                    if (!c.isEmpty() && c != QLatin1String("exit") && c != QLatin1String("clear")) self->m_lastTypedCommand = c;
+                });
+            } else {
+                const QString c = m_lineBuf.trimmed();
+                if (!c.isEmpty() && c != QLatin1String("exit") && c != QLatin1String("clear")) m_lastTypedCommand = c;
+            }
+            m_lineBuf.clear(); m_lineDirty = false;
+        } else if (c == 0x7f || c == 0x08) {
+            if (!m_lineBuf.isEmpty()) m_lineBuf.chop(1);
+        } else if (c == 0x15 || c == 0x03 || c == 0x04) {   // ^U, ^C, ^D
+            m_lineBuf.clear(); m_lineDirty = false;
+        } else if (c == 0x1b || c == '\t' || c < 0x20) {     // escapes (arrows), tab, other control keys
+            m_lineDirty = true;
+            if (c == 0x1b) return;  // swallow the rest of the escape sequence
+        } else {
+            m_lineBuf.append(ch);
+        }
+    }
 }
 
 void TerminalView::sendInput(const QByteArray &bytes) {
@@ -455,6 +488,7 @@ void TerminalView::pasteClipboard() {
         payload.append("\x1b[201~");
     }
     m_scrollOffset = 0;
+    if (m_screen.bracketedPaste()) m_lineDirty = true; else trackTypedInput(payload);
     sendInput(payload);
 }
 
@@ -631,6 +665,7 @@ void TerminalView::keyPressEvent(QKeyEvent *e) {
     if (!bytes.isEmpty()) {
         m_scrollOffset = 0;
         m_hasSelection = false;
+        trackTypedInput(bytes);
         sendInput(bytes);
         update();
         e->accept();
@@ -644,6 +679,7 @@ void TerminalView::inputMethodEvent(QInputMethodEvent *e) {
     if (!commit.isEmpty()) {
         m_scrollOffset = 0;
         m_hasSelection = false;
+        trackTypedInput(commit.toUtf8());
         sendInput(commit.toUtf8());
         update();
     }
@@ -727,6 +763,11 @@ void TerminalView::mouseDoubleClickEvent(QMouseEvent *e) {
 }
 
 void TerminalView::wheelEvent(QWheelEvent *e) {
+    // Momentum/queued wheel events can arrive after the cursor moved onto another pane or window;
+    // only scroll when the cursor is really over this view's window.
+    if (QWidget *under = QApplication::widgetAt(e->globalPosition().toPoint())) {
+        if (under->window() != window()) { e->ignore(); return; }
+    }
     const qreal dy = !e->pixelDelta().isNull() ? e->pixelDelta().y() : (e->angleDelta().y() / 8.0);
     m_wheelCarry += dy;
     const int stepLines = int(m_wheelCarry / m_cellH);

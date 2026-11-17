@@ -26,6 +26,7 @@ public:
     bool isActive() const { return m_isActive; }
 
     void runLastCommand();
+    void rerunLastTypedCommand();  // Cmd+R: last command typed in this terminal, else the project run command
     QString getProjectRunCommand(const QString &cwd = QString()) const;
     void showRunContextMenu(const QPoint &globalPos);
     void toggleSearch();

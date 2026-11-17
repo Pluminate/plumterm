@@ -6,6 +6,7 @@
 #include <QWheelEvent>
 #include <QtTest/QtTest>
 #include "MenuStyle.h"
+#include "TabBar.h"
 #include "TerminalView.h"
 
 class TerminalViewTest : public QObject {
@@ -159,6 +160,21 @@ private slots:
         QVERIFY(v.scrollOffset() >= off);
     }
 
+    void tracksLastTypedCommand() {
+        TerminalView v;
+        sized(v, 640, 320);
+        v.start("/tmp");
+        QVERIFY(v.isRunning());
+        auto key = [&](int k, const QString &t) { QKeyEvent e(QEvent::KeyPress, k, Qt::NoModifier, t); QApplication::sendEvent(&v, &e); };
+        QVERIFY(v.lastTypedCommand().isEmpty());
+        for (QChar c : QStringLiteral("lsx")) key(c.toUpper().unicode(), QString(c));
+        key(Qt::Key_Backspace, QString());
+        key(Qt::Key_Return, QStringLiteral("\r"));
+        QCOMPARE(v.lastTypedCommand(), QStringLiteral("ls"));
+        key(Qt::Key_Return, QStringLiteral("\r"));  // empty line keeps the previous command
+        QCOMPARE(v.lastTypedCommand(), QStringLiteral("ls"));
+    }
+
     void realShellEchoAndExit() {
         TerminalView v;
         sized(v, 640, 320);
@@ -290,6 +306,54 @@ private slots:
         tImg.fill(Qt::transparent);
         tabMenu.render(&tImg);
         tImg.save(QDir::temp().filePath(QStringLiteral("tab_menu_render.png")));
+    }
+
+    void tabDragReorder() {
+        TabBar bar;
+        bar.resize(600, 34);
+        bar.show();
+
+        const int id1 = bar.addTab(QStringLiteral("Tab 1"));
+        const int id2 = bar.addTab(QStringLiteral("Tab 2"));
+        const int id3 = bar.addTab(QStringLiteral("Tab 3"));
+        QApplication::processEvents();
+
+        QCOMPARE(bar.tabIdAt(0), id1);
+        QCOMPARE(bar.tabIdAt(1), id2);
+        QCOMPARE(bar.tabIdAt(2), id3);
+
+        QSignalSpy movedSpy(&bar, &TabBar::tabMoved);
+
+        const auto items = bar.findChildren<TabItem *>();
+        TabItem *tab1 = nullptr;
+        TabItem *tab3 = nullptr;
+        for (auto *item : items) {
+            if (item->id() == id1) tab1 = item;
+            if (item->id() == id3) tab3 = item;
+        }
+        QVERIFY(tab1 != nullptr);
+        QVERIFY(tab3 != nullptr);
+
+        // Drag Tab 1 past the center of Tab 3
+        const QPoint startLocal = tab1->rect().center();
+        const QPoint startGlobal = tab1->mapToGlobal(startLocal);
+        const QPoint targetGlobal = tab3->mapToGlobal(tab3->rect().center() + QPoint(20, 0));
+
+        QMouseEvent pressEvt(QEvent::MouseButtonPress, startLocal, startGlobal, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(tab1, &pressEvt);
+
+        const QPoint endLocalInTab1 = tab1->mapFromGlobal(targetGlobal);
+        QMouseEvent moveEvt(QEvent::MouseMove, endLocalInTab1, targetGlobal, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(tab1, &moveEvt);
+
+        QMouseEvent releaseEvt(QEvent::MouseButtonRelease, tab1->mapFromGlobal(targetGlobal), targetGlobal, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(tab1, &releaseEvt);
+
+        QVERIFY(movedSpy.count() >= 1);
+        QCOMPARE(bar.tabIdAt(0), id2);
+        QCOMPARE(bar.tabIdAt(1), id3);
+        QCOMPARE(bar.tabIdAt(2), id1);
+        QCOMPARE(bar.indexOfTab(id1), 2);
     }
 };
 

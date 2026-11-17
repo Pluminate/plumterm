@@ -2,6 +2,10 @@
 #include <QFrame>
 #include <QLabel>
 #include <QMenu>
+#include <QPoint>
+#include <QSplitter>
+#include <QList>
+#include <QVector>
 #include <QTimer>
 #include <QToolButton>
 
@@ -31,11 +35,20 @@ signals:
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void enterEvent(QEnterEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
+    void updateResizeCursor();
     void showFolderMenu(const QPoint &globalPos);
     void showBranchMenu(const QPoint &globalPos);
+
+    // Header-drag resizing: moves the splitter handles adjacent to this pane.
+    struct DragHandle { QSplitter *splitter; int index; QList<int> startSizes; };
+    QVector<DragHandle> m_dragHandles;
+    QPoint m_dragStart;
 
     TerminalView *m_view = nullptr;
     QLabel *m_folderLabel = nullptr;

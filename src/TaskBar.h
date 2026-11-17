@@ -20,9 +20,11 @@ signals:
 
 protected:
     void keyPressEvent(QKeyEvent *e) override;
+    bool eventFilter(QObject *obj, QEvent *ev) override;
 
 private:
     void submit();
+    void completeWord();
 
     TerminalView *m_view = nullptr;
     QLineEdit *m_input = nullptr;

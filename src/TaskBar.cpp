@@ -1,6 +1,10 @@
 #include "TaskBar.h"
 #include <QHBoxLayout>
+#include <QDir>
+#include <QFileInfo>
 #include <QKeyEvent>
+#include <QToolTip>
+#include <algorithm>
 #include <QLabel>
 #include "TerminalView.h"
 
@@ -28,6 +32,7 @@ TaskBar::TaskBar(TerminalView *view, QWidget *parent)
     m_input = new QLineEdit(this);
     m_input->setFixedHeight(30);
     m_input->setPlaceholderText(QStringLiteral("Run manual command in background (e.g. cargo build, npm test)…"));
+    m_input->installEventFilter(this);
     connect(m_input, &QLineEdit::returnPressed, this, &TaskBar::submit);
     layout->addWidget(m_input, 1);
 
@@ -80,4 +85,67 @@ void TaskBar::keyPressEvent(QKeyEvent *e) {
         return;
     }
     QFrame::keyPressEvent(e);
+}
+
+bool TaskBar::eventFilter(QObject *obj, QEvent *ev) {
+    if (obj == m_input && ev->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent *>(ev);
+        if (ke->key() == Qt::Key_Tab && !(ke->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {
+            completeWord();
+            return true;
+        }
+    }
+    return QFrame::eventFilter(obj, ev);
+}
+
+// Shell-like path completion for the word before the cursor, relative to the
+// pane's current directory.
+void TaskBar::completeWord() {
+    const QString text = m_input->text();
+    const int cur = m_input->cursorPosition();
+    int start = cur;
+    while (start > 0 && !(text[start - 1] == QLatin1Char(' ') && (start < 2 || text[start - 2] != QLatin1Char('\\')))) --start;
+
+    QString word = text.mid(start, cur - start);
+    word.replace(QStringLiteral("\\ "), QStringLiteral(" "));
+
+    QString cwd = m_view ? m_view->currentDirectory() : QString();
+    if (cwd.isEmpty()) cwd = QDir::currentPath();
+
+    const int slash = word.lastIndexOf(QLatin1Char('/'));
+    const QString dirPart = slash >= 0 ? word.left(slash + 1) : QString();
+    const QString namePart = word.mid(slash + 1);
+
+    QString lookup = dirPart;
+    if (lookup.startsWith(QLatin1Char('~'))) lookup = QDir::homePath() + lookup.mid(1);
+    const QDir dir(lookup.isEmpty() ? cwd : (QDir::isAbsolutePath(lookup) ? lookup : QDir(cwd).filePath(lookup)));
+    if (!dir.exists()) return;
+
+    QDir::Filters f = QDir::AllEntries | QDir::NoDotAndDotDot;
+    if (namePart.startsWith(QLatin1Char('.'))) f |= QDir::Hidden;
+    QStringList matches;
+    for (const QFileInfo &fi : dir.entryInfoList(f, QDir::Name | QDir::DirsFirst)) {
+        if (fi.fileName().startsWith(namePart)) matches << fi.fileName() + (fi.isDir() ? QStringLiteral("/") : QString());
+    }
+    if (matches.isEmpty()) return;
+
+    QString common = matches.first();
+    for (const QString &m : std::as_const(matches)) {
+        int i = 0;
+        while (i < common.size() && i < m.size() && common[i] == m[i]) ++i;
+        common.truncate(i);
+    }
+    if (common.size() < namePart.size()) common = namePart;
+
+    QString completed = dirPart + common;
+    if (matches.size() == 1 && !completed.endsWith(QLatin1Char('/'))) completed += QLatin1Char(' ');
+    completed.replace(QLatin1Char(' '), QStringLiteral("\\ "));
+    if (matches.size() == 1 && completed.endsWith(QStringLiteral("\\ "))) completed.chop(2), completed += QLatin1Char(' ');
+
+    m_input->setText(text.left(start) + completed + text.mid(cur));
+    m_input->setCursorPosition(start + completed.size());
+
+    if (matches.size() > 1 && common == namePart) {
+        QToolTip::showText(m_input->mapToGlobal(QPoint(0, m_input->height())), matches.mid(0, 30).join(QStringLiteral("   ")), m_input);
+    }
 }

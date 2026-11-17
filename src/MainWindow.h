@@ -46,6 +46,7 @@ private:
     void setActivePane(TerminalPane *pane);
     void removePane(TerminalPane *pane);
     bool confirmClose();
+    int currentTabIndex() const;
     TabInfo *currentTabInfo();
     TabInfo *tabInfoForId(int id);
     void setupShortcuts();

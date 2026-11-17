@@ -1,5 +1,6 @@
 #include "PaneHeader.h"
 #include <QApplication>
+#include <algorithm>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDir>
@@ -296,7 +297,78 @@ void PaneHeader::mousePressEvent(QMouseEvent *e) {
             return;
         }
     }
+    if (e->button() == Qt::LeftButton) {
+        // Start a header drag: collect the splitter handle bordering this pane
+        // on each axis (preceding handle, else following one).
+        m_dragHandles.clear();
+        m_dragStart = e->globalPosition().toPoint();
+        bool haveH = false, haveV = false;
+        QWidget *child = parentWidget();
+        while (child && child->parentWidget()) {
+            auto *sp = qobject_cast<QSplitter *>(child->parentWidget());
+            if (sp) {
+                bool &have = sp->orientation() == Qt::Horizontal ? haveH : haveV;
+                if (!have) {
+                    const int idx = sp->indexOf(child);
+                    const int handleIdx = idx > 0 ? idx : 1;
+                    if (sp->count() > 1 && handleIdx < sp->count()) {
+                        m_dragHandles.append({sp, handleIdx, sp->sizes()});
+                        have = true;
+                    }
+                }
+            }
+            child = child->parentWidget();
+        }
+        if (!m_dragHandles.isEmpty()) {
+            e->accept();
+            return;
+        }
+    }
     QFrame::mousePressEvent(e);
+}
+
+void PaneHeader::updateResizeCursor() {
+    bool haveH = false, haveV = false;
+    for (QWidget *child = parentWidget(); child && child->parentWidget(); child = child->parentWidget()) {
+        auto *sp = qobject_cast<QSplitter *>(child->parentWidget());
+        if (sp && sp->count() > 1)
+            (sp->orientation() == Qt::Horizontal ? haveH : haveV) = true;
+    }
+    if (haveH && haveV) setCursor(Qt::SizeAllCursor);
+    else if (haveH) setCursor(Qt::SplitHCursor);
+    else if (haveV) setCursor(Qt::SplitVCursor);
+    else unsetCursor();
+}
+
+void PaneHeader::enterEvent(QEnterEvent *e) {
+    updateResizeCursor();
+    QFrame::enterEvent(e);
+}
+
+void PaneHeader::mouseMoveEvent(QMouseEvent *e) {
+    if (m_dragHandles.isEmpty() || !(e->buttons() & Qt::LeftButton)) {
+        QFrame::mouseMoveEvent(e);
+        return;
+    }
+    const QPoint d = e->globalPosition().toPoint() - m_dragStart;
+    for (const auto &h : std::as_const(m_dragHandles)) {
+        if (!h.splitter) continue;
+        const int delta = h.splitter->orientation() == Qt::Horizontal ? d.x() : d.y();
+        QList<int> sizes = h.startSizes;
+        const int a = h.index - 1, b = h.index;
+        const int total = sizes[a] + sizes[b];
+        const int minA = 40;
+        const int newA = std::clamp(sizes[a] + delta, minA, std::max(minA, total - 40));
+        sizes[a] = newA;
+        sizes[b] = total - newA;
+        h.splitter->setSizes(sizes);
+    }
+    e->accept();
+}
+
+void PaneHeader::mouseReleaseEvent(QMouseEvent *e) {
+    m_dragHandles.clear();
+    QFrame::mouseReleaseEvent(e);
 }
 
 void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {

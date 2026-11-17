@@ -1,6 +1,7 @@
 #include "TerminalPane.h"
 #include <QApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QFile>
 #include <QInputDialog>
 #include <QJsonDocument>
@@ -191,6 +192,14 @@ void TerminalPane::runLastCommand() {
     }
 }
 
+void TerminalPane::rerunLastTypedCommand() {
+    if (!m_view) return;
+    const QString cmd = m_view->lastTypedCommand().trimmed();
+    if (cmd.isEmpty()) { runLastCommand(); return; }
+    if (!m_view->isRunning()) m_view->start(currentDirectory());
+    m_view->sendInput(cmd.toUtf8() + "\r");
+}
+
 void TerminalPane::toggleSearch() {
     if (m_searchBar) {
         if (m_searchBar->isVisible()) {
@@ -274,11 +283,23 @@ void TerminalPane::runBackgroundTask(const QString &cmd) {
         }
     });
 
+    // Run through the user's login shell in interactive mode so ~/.zshrc /
+    // ~/.bashrc are sourced and aliases/functions are available.
+    QString shell = qEnvironmentVariable("SHELL");
+    if (shell.isEmpty() || !QFileInfo::exists(shell)) {
 #ifdef Q_OS_MACOS
-    m_bgProcess->start(QStringLiteral("/bin/zsh"), {QStringLiteral("-l"), QStringLiteral("-c"), m_bgCommand});
+        shell = QStringLiteral("/bin/zsh");
 #else
-    m_bgProcess->start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), m_bgCommand});
+        shell = QStringLiteral("/bin/sh");
 #endif
+    }
+    const QString shellName = QFileInfo(shell).fileName();
+    const bool rcShell = shellName == QLatin1String("zsh") || shellName == QLatin1String("bash");
+    QStringList args;
+    if (rcShell) args << QStringLiteral("-l") << QStringLiteral("-i");
+    args << QStringLiteral("-c") << m_bgCommand;
+    m_bgProcess->start(shell, args);
+    m_bgProcess->closeWriteChannel();
 }
 
 void TerminalPane::showTaskOutput() {

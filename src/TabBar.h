@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
+#include <QPoint>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -24,9 +25,12 @@ signals:
     void closeRequested(int id);
     void renamed(int id, const QString &newTitle);
     void contextMenuRequested(int id, const QPoint &globalPos);
+    void dragMoved(int id, const QPoint &globalPos);
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
 
@@ -36,6 +40,9 @@ private:
     int m_id = 0;
     QString m_title;
     bool m_active = false;
+    bool m_pressing = false;
+    bool m_dragging = false;
+    QPoint m_dragStartPos;
     QLabel *m_label = nullptr;
     QPushButton *m_closeBtn = nullptr;
     QLineEdit *m_edit = nullptr;
@@ -48,9 +55,12 @@ public:
 
     int addTab(const QString &title);
     void removeTab(int id);
+    void moveTab(int fromIndex, int toIndex);
     void setActiveTab(int id);
     int activeTabId() const { return m_activeId; }
     int count() const { return m_tabs.size(); }
+    int tabIdAt(int index) const;
+    int indexOfTab(int id) const;
     QString tabTitle(int id) const;
     void setTabTitle(int id, const QString &title);
     void startRename(int id);
@@ -58,6 +68,7 @@ public:
 
 signals:
     void currentChanged(int id);
+    void tabMoved(int fromIndex, int toIndex);
     void tabCloseRequested(int id);
     void newTabRequested();
     void newWindowRequested();
@@ -72,6 +83,7 @@ protected:
 
 private:
     void updateTabStyles();
+    void handleTabDrag(int id, const QPoint &globalPos);
 
     QHBoxLayout *m_tabLayout = nullptr;
     QList<TabItem *> m_tabs;
