@@ -126,6 +126,12 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     m_taskIndicatorBtn->setVisible(false);
     connect(m_taskIndicatorBtn, &QToolButton::clicked, this, &PaneHeader::taskIndicatorClicked);
     layout->addWidget(m_taskIndicatorBtn);
+    m_taskIndicatorBtn->installEventFilter(this);
+    m_taskDismissTimer.setSingleShot(true);
+    m_taskDismissTimer.setInterval(30000);
+    connect(&m_taskDismissTimer, &QTimer::timeout, this, [this] {
+        if (m_taskFinished) m_taskIndicatorBtn->setVisible(false);
+    });
 
     m_runBtn = new QToolButton(this);
     m_runBtn->setText(QStringLiteral("▶"));
@@ -151,7 +157,21 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
     QTimer::singleShot(200, this, &PaneHeader::updateStatus);
 }
 
+bool PaneHeader::eventFilter(QObject *obj, QEvent *ev) {
+    // Middle-click dismisses a finished task indicator.
+    if (obj == m_taskIndicatorBtn && m_taskFinished && ev->type() == QEvent::MouseButtonRelease
+        && static_cast<QMouseEvent *>(ev)->button() == Qt::MiddleButton) {
+        m_taskDismissTimer.stop();
+        m_taskIndicatorBtn->setVisible(false);
+        return true;
+    }
+    return QFrame::eventFilter(obj, ev);
+}
+
 void PaneHeader::setTaskStatus(bool running, const QString &command, int exitCode) {
+    m_taskFinished = !running && !command.isEmpty();
+    m_taskDismissTimer.stop();
+    if (m_taskFinished) m_taskDismissTimer.start();
     if (command.isEmpty()) {
         m_taskIndicatorBtn->setVisible(false);
         return;

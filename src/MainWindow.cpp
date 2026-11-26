@@ -236,7 +236,7 @@ void MainWindow::setupMenuBar() {
 void MainWindow::newWindow(const QString &cwd) {
     auto *win = new MainWindow();
     win->setAttribute(Qt::WA_DeleteOnClose);
-    const QString targetCwd = cwd.isEmpty() ? (m_activePane ? m_activePane->currentDirectory() : QDir::currentPath()) : cwd;
+    const QString targetCwd = cwd.isEmpty() ? (m_activePane ? m_activePane->currentDirectory() : QString()) : cwd;
     win->newTab(targetCwd);
     win->resize(size());
     win->move(pos() + QPoint(30, 30));
@@ -351,7 +351,7 @@ void MainWindow::newTab(const QString &cwd) {
     if (dir.isEmpty() && m_activePane) {
         dir = m_activePane->currentDirectory();
     }
-    if (dir.isEmpty()) dir = QDir::currentPath();
+    if (dir.isEmpty()) dir = QDir::homePath();
 
     auto *container = new QWidget(m_stack);
     auto *layout = new QVBoxLayout(container);

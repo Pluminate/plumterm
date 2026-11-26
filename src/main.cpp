@@ -26,7 +26,8 @@ int main(int argc, char **argv) {
 
     auto *w = new MainWindow();
     w->setAttribute(Qt::WA_DeleteOnClose);
-    const QString initCwd = args.size() > 1 ? args.at(1) : QDir::currentPath();
+    const QString initCwd = args.size() > 1 ? args.at(1)
+                                                   : (QDir::currentPath() == QLatin1String("/") ? QDir::homePath() : QDir::currentPath());
     if (!w->restoreSession()) {
         w->newTab(initCwd);
     }
