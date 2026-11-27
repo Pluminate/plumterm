@@ -28,20 +28,95 @@ struct User(*mut c_void);
 unsafe impl Send for User {}
 
 fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| {
-        if cfg!(windows) { "powershell.exe".into() } else { "/bin/sh".into() }
-    })
+    if let Ok(shell) = std::env::var("SHELL") {
+        if !shell.is_empty() {
+            return shell;
+        }
+    }
+    #[cfg(windows)]
+    {
+        for cand in [r"C:\msys64\usr\bin\zsh.exe"] {
+            if std::path::Path::new(cand).exists() {
+                return cand.into();
+            }
+        }
+        return "powershell.exe".into();
+    }
+    #[cfg(not(windows))]
+    {
+        "/bin/sh".into()
+    }
+}
+
+fn is_posix_shell(shell: &str) -> bool {
+    let name = std::path::Path::new(shell)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(name.as_str(), "zsh" | "zsh.exe" | "bash" | "bash.exe" | "sh" | "sh.exe")
+}
+
+fn normalize_cwd(cwd: &str) -> String {
+    #[cfg(windows)]
+    {
+        let mut p = cwd.trim().to_string();
+        let bytes = p.as_bytes();
+        if bytes.len() >= 3 && bytes[0] == b'/' && bytes[1].is_ascii_alphabetic() && bytes[2] == b':' {
+            p = p[1..].to_string();
+        } else if bytes.len() >= 2 && bytes[0] == b'/' && bytes[1].is_ascii_alphabetic() && (bytes.len() == 2 || bytes[2] == b'/') {
+            let drive = (bytes[1] as char).to_ascii_uppercase();
+            let rest = if bytes.len() > 2 { &p[2..] } else { "/" };
+            p = format!("{drive}:{rest}");
+        } else if p.starts_with("/home/") {
+            p = format!("C:/msys64{p}");
+        }
+        if !p.is_empty() && std::path::Path::new(&p).exists() {
+            return p;
+        }
+        if let Ok(up) = std::env::var("USERPROFILE") {
+            if !up.is_empty() && std::path::Path::new(&up).exists() {
+                return up;
+            }
+        }
+    }
+    cwd.to_string()
 }
 
 pub fn spawn(cwd: &str, cols: u16, rows: u16, on_data: DataCb, on_exit: ExitCb, user: *mut c_void) -> Option<u64> {
     let pair = native_pty_system()
         .openpty(PtySize { rows: rows.max(1), cols: cols.max(1), pixel_width: 0, pixel_height: 0 })
         .ok()?;
-    let mut cmd = CommandBuilder::new(default_shell());
+    let shell = default_shell();
+    let posix = is_posix_shell(&shell);
+    let mut cmd = CommandBuilder::new(&shell);
     if !cfg!(windows) {
-        cmd.arg("-l"); // login shell: GUI-launched apps otherwise miss the user's PATH
+        cmd.arg("-l"); // login shell: macOS/Linux GUI-launched apps otherwise miss the user's PATH
     }
-    cmd.cwd(cwd);
+    if cfg!(windows) && posix {
+        // Avoid `-l` on Windows (MSYS2 /etc/profile adds ~2s of fork overhead on every new tab).
+        // Instead, preserve the inherited Windows PATH and ensure the shell's bin dir is included.
+        if let Some(bin_dir) = std::path::Path::new(&shell).parent().and_then(|p| p.to_str()) {
+            let cur_path = std::env::var("PATH").unwrap_or_default();
+            let has_bin = cur_path.split(';').any(|p| p.eq_ignore_ascii_case(bin_dir));
+            if !has_bin {
+                let new_path = if cur_path.is_empty() {
+                    bin_dir.to_string()
+                } else {
+                    format!("{bin_dir};{cur_path}")
+                };
+                cmd.env("PATH", new_path);
+            }
+        }
+        if std::env::var_os("MSYSTEM").is_none() {
+            cmd.env("MSYSTEM", "MSYS");
+        }
+        if std::env::var_os("LANG").is_none() {
+            cmd.env("LANG", "en_US.UTF-8");
+        }
+        cmd.env("CHERE_INVOKING", "1");
+    }
+    cmd.cwd(normalize_cwd(cwd));
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     let child = pair.slave.spawn_command(cmd).ok()?;
@@ -100,7 +175,85 @@ fn process_cwd(pid: u32) -> Option<String> {
     std::fs::read_link(format!("/proc/{pid}/cwd")).ok().map(|p| p.to_string_lossy().into_owned())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn process_cwd(pid: u32) -> Option<String> {
+    use std::ffi::c_void;
+    const PROCESS_QUERY_INFORMATION: u32 = 0x0400;
+    const PROCESS_VM_READ: u32 = 0x0010;
+
+    #[repr(C)]
+    struct ProcessBasicInformation {
+        reserved1: *mut c_void,
+        peb_base_address: *mut c_void,
+        reserved2: [*mut c_void; 2],
+        unique_process_id: usize,
+        reserved3: *mut c_void,
+    }
+
+    #[repr(C)]
+    struct UnicodeString {
+        length: u16,
+        maximum_length: u16,
+        buffer: *mut u16,
+    }
+
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn CloseHandle(h: *mut c_void) -> i32;
+        fn ReadProcessMemory(proc: *mut c_void, base: *const c_void, buf: *mut c_void, size: usize, read: *mut usize) -> i32;
+        fn NtQueryInformationProcess(proc: *mut c_void, info_class: u32, info: *mut c_void, len: u32, ret_len: *mut u32) -> i32;
+    }
+
+    unsafe {
+        let h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid);
+        if h.is_null() {
+            return None;
+        }
+        struct Guard(*mut c_void);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                unsafe { CloseHandle(self.0); }
+            }
+        }
+        let _guard = Guard(h);
+
+        let mut pbi: ProcessBasicInformation = std::mem::zeroed();
+        let mut ret_len = 0u32;
+        if NtQueryInformationProcess(h, 0, &mut pbi as *mut _ as *mut c_void, std::mem::size_of::<ProcessBasicInformation>() as u32, &mut ret_len) != 0
+            || pbi.peb_base_address.is_null()
+        {
+            return None;
+        }
+
+        // PEB64: ProcessParameters pointer is at offset 0x20.
+        let mut proc_params: *mut c_void = std::ptr::null_mut();
+        let mut bytes_read = 0usize;
+        if ReadProcessMemory(h, (pbi.peb_base_address as *const u8).add(0x20) as *const c_void, &mut proc_params as *mut _ as *mut c_void, std::mem::size_of::<*mut c_void>(), &mut bytes_read) == 0
+            || proc_params.is_null()
+        {
+            return None;
+        }
+
+        // RTL_USER_PROCESS_PARAMETERS64: CurrentDirectory.DosPath (UNICODE_STRING) is at offset 0x38.
+        let mut cur_dir: UnicodeString = std::mem::zeroed();
+        if ReadProcessMemory(h, (proc_params as *const u8).add(0x38) as *const c_void, &mut cur_dir as *mut _ as *mut c_void, std::mem::size_of::<UnicodeString>(), &mut bytes_read) == 0
+            || cur_dir.length == 0
+            || cur_dir.buffer.is_null()
+        {
+            return None;
+        }
+
+        let char_count = (cur_dir.length / 2) as usize;
+        let mut buf = vec![0u16; char_count];
+        if ReadProcessMemory(h, cur_dir.buffer as *const c_void, buf.as_mut_ptr() as *mut c_void, cur_dir.length as usize, &mut bytes_read) == 0 {
+            return None;
+        }
+        let s = String::from_utf16_lossy(&buf).trim_end_matches(['\\', '/']).to_string();
+        if s.is_empty() { None } else { Some(s) }
+    }
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn process_cwd(_pid: u32) -> Option<String> { None }
 
 pub fn kill(id: u64) {

@@ -22,6 +22,12 @@ pub fn run_env(prog: &str, args: &[&str], cwd: Option<&Path>, env: &[(&str, &str
     cmd.envs(env.iter().copied());
     cmd.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     if let Some(c) = cwd { cmd.current_dir(c); }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
     let mut child = cmd.spawn().ok()?;
     let mut so = child.stdout.take()?;
     let mut se = child.stderr.take()?;

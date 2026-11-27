@@ -80,6 +80,14 @@ void TerminalPane::setActive(bool active) {
     }
 }
 
+void TerminalPane::setDark(bool dark) {
+    if (m_header) m_header->setDark(dark);
+    if (m_view) {
+        m_view->setBackground(dark ? QColor(0x00, 0x00, 0x00) : QColor());
+        m_view->setDark(dark);
+    }
+}
+
 QString TerminalPane::getProjectRunCommand(const QString &cwd) const {
     const QString targetCwd = cwd.isEmpty() ? currentDirectory() : cwd;
     if (targetCwd.isEmpty()) return QStringLiteral("./start.sh");
@@ -138,20 +146,21 @@ void TerminalPane::showRunContextMenu(const QPoint &globalPos) {
     const QString cwd = currentDirectory();
     const QString cmd = getProjectRunCommand(cwd);
 
+    const bool dark = MenuStyle::isDark(this);
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, dark);
 
-    auto *runAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPlay, true), QStringLiteral("Run in Terminal: %1").arg(cmd));
+    auto *runAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPlay, dark), QStringLiteral("Run in Terminal: %1").arg(cmd));
     connect(runAct, &QAction::triggered, this, &TerminalPane::runLastCommand);
 
-    auto *bgAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFlash, true), QStringLiteral("Run in Background: %1").arg(cmd));
+    auto *bgAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFlash, dark), QStringLiteral("Run in Background: %1").arg(cmd));
     connect(bgAct, &QAction::triggered, this, [this, cmd] {
         runBackgroundTask(cmd);
     });
 
     menu.addSeparator();
 
-    auto *editAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSettings, true), QStringLiteral("Configure Run Command for this folder…"));
+    auto *editAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSettings, dark), QStringLiteral("Configure Run Command for this folder…"));
     connect(editAct, &QAction::triggered, this, [this, cwd, cmd] {
         bool ok = false;
         const QString newCmd = QInputDialog::getText(

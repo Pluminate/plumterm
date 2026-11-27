@@ -145,6 +145,9 @@ PaneHeader::PaneHeader(TerminalView *view, QWidget *parent)
 
     setActive(true);
 
+    if (m_view) {
+        connect(m_view, &TerminalView::cwdChanged, this, [this](const QString &) { updateStatus(); });
+    }
     connect(&m_pollTimer, &QTimer::timeout, this, &PaneHeader::updateStatus);
     m_pollTimer.start(3000);
 
@@ -187,18 +190,66 @@ void PaneHeader::setTaskStatus(bool running, const QString &command, int exitCod
     }
 }
 
+void PaneHeader::setDark(bool dark) {
+    m_dark = dark;
+    const QString hoverBg = dark ? QStringLiteral("#1a1a1a") : QStringLiteral("#e2e8f0");
+    if (m_branchBtn) {
+        m_branchBtn->setStyleSheet(QStringLiteral(
+            "QToolButton { color: %1; font-size: 11px; font-weight: 500; border: none; padding: 2px 4px; }"
+            "QToolButton:hover { color: %2; background-color: %3; border-radius: 3px; }"
+        ).arg(dark ? QStringLiteral("#2ecc71") : QStringLiteral("#16a34a"),
+              dark ? QStringLiteral("#27ae60") : QStringLiteral("#15803d"),
+              hoverBg));
+    }
+    if (m_aiBtn) {
+        m_aiBtn->setStyleSheet(QStringLiteral(
+            "QToolButton { color: %1; font-size: 12px; border: none; padding: 2px 4px; }"
+            "QToolButton:hover { color: #f1c40f; background-color: %2; border-radius: 3px; }"
+        ).arg(dark ? QStringLiteral("#888888") : QStringLiteral("#64748b"), hoverBg));
+    }
+    if (m_taskBtn) {
+        m_taskBtn->setStyleSheet(QStringLiteral(
+            "QToolButton { border: none; padding: 2px 4px; border-radius: 3px; }"
+            "QToolButton:hover { background-color: %1; }"
+        ).arg(hoverBg));
+    }
+    if (m_runBtn) {
+        m_runBtn->setStyleSheet(QStringLiteral(
+            "QToolButton { color: %1; font-size: 13px; font-weight: bold; border: none; padding: 2px 4px; }"
+            "QToolButton:hover { color: %2; background-color: %3; border-radius: 3px; }"
+        ).arg(dark ? QStringLiteral("#2ecc71") : QStringLiteral("#16a34a"),
+              dark ? QStringLiteral("#4ade80") : QStringLiteral("#15803d"),
+              hoverBg));
+    }
+    setActive(m_isActive);
+}
+
 void PaneHeader::setActive(bool active) {
     m_isActive = active;
-    if (active) {
-        setStyleSheet(QStringLiteral(
-            "#paneHeader { background-color: #111111; border-bottom: 1px solid #222222; }"
-        ));
-        m_folderLabel->setStyleSheet(QStringLiteral("color: #cccccc; font-size: 11px; font-weight: 500;"));
+    if (m_dark) {
+        if (active) {
+            setStyleSheet(QStringLiteral(
+                "#paneHeader { background-color: #111111; border-bottom: 1px solid #222222; }"
+            ));
+            m_folderLabel->setStyleSheet(QStringLiteral("color: #cccccc; font-size: 11px; font-weight: 500;"));
+        } else {
+            setStyleSheet(QStringLiteral(
+                "#paneHeader { background-color: #161618; border-bottom: 1px solid #222222; }"
+            ));
+            m_folderLabel->setStyleSheet(QStringLiteral("color: #777777; font-size: 11px; font-weight: 500;"));
+        }
     } else {
-        setStyleSheet(QStringLiteral(
-            "#paneHeader { background-color: #161618; border-bottom: 1px solid #222222; }"
-        ));
-        m_folderLabel->setStyleSheet(QStringLiteral("color: #777777; font-size: 11px; font-weight: 500;"));
+        if (active) {
+            setStyleSheet(QStringLiteral(
+                "#paneHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; }"
+            ));
+            m_folderLabel->setStyleSheet(QStringLiteral("color: #334155; font-size: 11px; font-weight: 500;"));
+        } else {
+            setStyleSheet(QStringLiteral(
+                "#paneHeader { background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; }"
+            ));
+            m_folderLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px; font-weight: 500;"));
+        }
     }
 }
 
@@ -266,9 +317,9 @@ void PaneHeader::mousePressEvent(QMouseEvent *e) {
         }
         if (m_statsLabel->isVisible() && m_statsLabel->geometry().contains(e->pos())) {
             QMenu menu(this);
-            MenuStyle::apply(&menu, true);
+            MenuStyle::apply(&menu, m_dark);
 
-            auto *commitAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, true), QStringLiteral("Commit Changes…"));
+            auto *commitAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, m_dark), QStringLiteral("Commit Changes…"));
             connect(commitAct, &QAction::triggered, this, [this] {
                 CommitDialog dlg(m_lastCwd, this);
                 dlg.exec();
@@ -283,7 +334,7 @@ void PaneHeader::mousePressEvent(QMouseEvent *e) {
                     const QString st = obj.value(QStringLiteral("status")).toString();
                     const QString f = obj.value(QStringLiteral("file")).toString();
 
-                    auto *fileAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kDiff, true), QStringLiteral("[%1] %2").arg(st, f));
+                    auto *fileAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kDiff, m_dark), QStringLiteral("[%1] %2").arg(st, f));
                     connect(fileAct, &QAction::triggered, this, [this, f] {
                         DiffViewerDialog dlg(m_lastCwd, f, this);
                         dlg.exec();
@@ -379,17 +430,17 @@ void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {
     }
 
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, m_dark);
 
-    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), QStringLiteral("Split Right\t⌘⇧R"));
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, m_dark), QStringLiteral("Split Right\t⌘⇧R"));
     connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
 
-    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), QStringLiteral("Split Down\t⌘⇧D"));
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, m_dark), QStringLiteral("Split Down\t⌘⇧D"));
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.addSeparator();
 
-    auto *closeAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), QStringLiteral("Close Pane\t⌘W"));
+    auto *closeAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, m_dark), QStringLiteral("Close Pane\t⌘W"));
     connect(closeAct, &QAction::triggered, this, &PaneHeader::closeRequested);
 
     menu.exec(e->globalPos());
@@ -397,33 +448,33 @@ void PaneHeader::contextMenuEvent(QContextMenuEvent *e) {
 
 void PaneHeader::showFolderMenu(const QPoint &globalPos) {
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, m_dark);
 
-    auto *copyPath = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), QStringLiteral("Copy Path"));
+    auto *copyPath = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, m_dark), QStringLiteral("Copy Path"));
     connect(copyPath, &QAction::triggered, this, [this] {
         QApplication::clipboard()->setText(m_lastCwd);
     });
 
     menu.addSeparator();
 
-    auto *openFinder = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFinder, true), QStringLiteral("Open in Finder"));
+    auto *openFinder = menu.addAction(MenuStyle::makeIcon(MenuIcons::kFinder, m_dark), QStringLiteral("Open in Finder"));
     connect(openFinder, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("finder"), m_lastCwd);
     });
 
     menu.addSeparator();
 
-    auto *openVSCode = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, true), QStringLiteral("Open in VS Code"));
+    auto *openVSCode = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, m_dark), QStringLiteral("Open in VS Code"));
     connect(openVSCode, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("vscode"), m_lastCwd);
     });
 
-    auto *openIntelliJ = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, true), QStringLiteral("Open in IntelliJ IDEA"));
+    auto *openIntelliJ = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCode, m_dark), QStringLiteral("Open in IntelliJ IDEA"));
     connect(openIntelliJ, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("intellij"), m_lastCwd);
     });
 
-    auto *openGithubDesktop = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, true), QStringLiteral("Open in GitHub Desktop"));
+    auto *openGithubDesktop = menu.addAction(MenuStyle::makeIcon(MenuIcons::kGit, m_dark), QStringLiteral("Open in GitHub Desktop"));
     connect(openGithubDesktop, &QAction::triggered, this, [this] {
         CoreBridge::openIn(QStringLiteral("githubdesktop"), m_lastCwd);
     });
@@ -436,7 +487,7 @@ void PaneHeader::showBranchMenu(const QPoint &globalPos) {
     if (!branchesVal.isArray()) return;
 
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, m_dark);
 
     const auto branches = branchesVal.toArray();
     for (const auto &bVal : branches) {

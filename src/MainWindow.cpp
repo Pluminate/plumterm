@@ -1,7 +1,9 @@
 #include "MainWindow.h"
 #include <QApplication>
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QDir>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -9,7 +11,9 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSettings>
 #include <QShortcut>
+#include <QStyleHints>
 #include <QVBoxLayout>
 #include "CoreBridge.h"
 #include "GlobalHotkey.h"
@@ -18,8 +22,52 @@
 #include "TabBar.h"
 #include "TerminalPane.h"
 #include "TerminalView.h"
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <windowsx.h>
+#include <dwmapi.h>
+#endif
 
 namespace {
+
+bool isSystemDark() {
+    if (auto *hints = QGuiApplication::styleHints()) {
+        if (hints->colorScheme() == Qt::ColorScheme::Dark) return true;
+        if (hints->colorScheme() == Qt::ColorScheme::Light) return false;
+    }
+#ifdef Q_OS_WIN
+    QSettings reg(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+                  QSettings::NativeFormat);
+    return reg.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+#else
+    return true;
+#endif
+}
+
+#ifdef Q_OS_WIN
+void applyWindowsTitleBarTheme(QWidget *w, bool dark) {
+    if (!w) return;
+    HWND hwnd = reinterpret_cast<HWND>(w->winId());
+    if (!hwnd) return;
+    const MARGINS margins = {0, 0, 1, 0};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+    const DWORD cornerPref = 2; // DWMWCP_ROUND
+    DwmSetWindowAttribute(hwnd, 33, &cornerPref, sizeof(cornerPref));
+    const COLORREF borderColor = dark ? RGB(0x2e, 0x32, 0x3b) : RGB(0xcb, 0xd5, 0xe1);
+    DwmSetWindowAttribute(hwnd, 34, &borderColor, sizeof(borderColor));
+    BOOL val = dark ? TRUE : FALSE;
+    constexpr DWORD kDwmwaUseImmersiveDarkMode = 20;
+    if (FAILED(DwmSetWindowAttribute(hwnd, kDwmwaUseImmersiveDarkMode, &val, sizeof(val)))) {
+        DwmSetWindowAttribute(hwnd, 19, &val, sizeof(val));
+    }
+    constexpr DWORD kDwmwaCaptionColor = 35;
+    COLORREF captionColor = dark ? RGB(0x11, 0x11, 0x11) : RGB(0xf3, 0xf4, 0xf6);
+    DwmSetWindowAttribute(hwnd, kDwmwaCaptionColor, &captionColor, sizeof(captionColor));
+}
+#endif
 
 QJsonObject serializeNode(QWidget *w) {
     if (auto *pane = qobject_cast<TerminalPane *>(w)) {
@@ -54,11 +102,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // Dark window styling
     setStyleSheet(QStringLiteral(
         "QMainWindow { background-color: #000000; }"
+        "QMenuBar { background-color: #111111; color: #dfe1e5; border-bottom: 1px solid #222222; }"
+        "QMenuBar::item { background-color: transparent; padding: 4px 10px; }"
+        "QMenuBar::item:selected { background-color: #2e436e; color: #ffffff; }"
+        "QMenuBar::item:pressed { background-color: #3574f0; color: #ffffff; }"
         "QSplitter::handle { background-color: #222222; }"
         "QSplitter::handle:hover { background-color: #38bdf8; }"
     ));
 
     auto *central = new QWidget(this);
+    central->setObjectName(QStringLiteral("tpCentral"));
     auto *rootLayout = new QVBoxLayout(central);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
@@ -93,40 +146,60 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_tabBar, &TabBar::closeAllTabsRequested, this, &MainWindow::closeAllTabs);
     connect(m_tabBar, &TabBar::splitRequested, this, &MainWindow::splitActivePane);
     connect(m_tabBar, &TabBar::settingsRequested, this, &MainWindow::openSettings);
+    connect(m_tabBar, &TabBar::minimizeRequested, this, &QWidget::showMinimized);
+    connect(m_tabBar, &TabBar::maximizeRestoreRequested, this, [this] {
+        if (isMaximized()) showNormal(); else showMaximized();
+    });
+    connect(m_tabBar, &TabBar::windowCloseRequested, this, &QWidget::close);
+
+    m_dark = isSystemDark();
+    MenuStyle::instance()->setProperty("dark", m_dark);
 
     setupMenuBar();
     setupShortcuts();
+    applyTheme(m_dark);
+    if (auto *hints = QGuiApplication::styleHints()) {
+        connect(hints, &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+            applyTheme(isSystemDark());
+        });
+    }
 }
 
 MainWindow::~MainWindow() = default;
 
 void MainWindow::setupMenuBar() {
+#ifdef Q_OS_WIN
+    auto *chevronMenu = new QMenu(this);
+    auto *bar = chevronMenu;
+    menuBar()->hide();
+#else
     auto *bar = menuBar();
+#endif
 
     // 1. Shell menu
     auto *shellMenu = bar->addMenu(tr("&Shell"));
 
-    auto *newTabAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, [this] { newTab(); });
+    auto *newTabAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kAdd, m_dark), tr("New Tab\t⌘T"), this, [this] { newTab(); });
     newTabAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+T")));
 
-    auto *newWinAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, [this] { newWindow(); });
+    auto *newWinAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kWindow, m_dark), tr("New Window\t⌘N"), this, [this] { newWindow(); });
     newWinAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+N")));
 
-    shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Duplicate Tab"), this, [this] {
+    shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, m_dark), tr("Duplicate Tab"), this, [this] {
         if (m_tabBar) duplicateTab(m_tabBar->activeTabId());
     });
 
     shellMenu->addSeparator();
 
-    auto *splitRightAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] { splitActivePane(true); });
+    auto *splitRightAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, m_dark), tr("Split Right\t⌘⇧R"), this, [this] { splitActivePane(true); });
     splitRightAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+R")));
 
-    auto *splitDownAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] { splitActivePane(false); });
+    auto *splitDownAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, m_dark), tr("Split Down\t⌘⇧D"), this, [this] { splitActivePane(false); });
     splitDownAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+D")));
 
     shellMenu->addSeparator();
 
-    auto *closePaneAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Pane\t⌘W"), this, &MainWindow::closeActivePane);
+    auto *closePaneAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClose, m_dark), tr("Close Pane\t⌘W"), this, &MainWindow::closeActivePane);
     closePaneAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+W")));
 
     auto *closeTabAct = shellMenu->addAction(tr("Close Tab\t⌘⇧W"), this, &MainWindow::closeActiveTab);
@@ -138,16 +211,18 @@ void MainWindow::setupMenuBar() {
 
     shellMenu->addAction(tr("Close All Tabs"), this, &MainWindow::closeAllTabs);
 
+#ifdef Q_OS_MACOS
     shellMenu->addSeparator();
 
-    auto *settingsAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, true), tr("Settings…\t⌘,"), this, &MainWindow::openSettings);
+    auto *settingsAct = shellMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, m_dark), tr("Settings…\t⌘,"), this, &MainWindow::openSettings);
     settingsAct->setShortcut(QKeySequence::Preferences);
     settingsAct->setMenuRole(QAction::PreferencesRole);
+#endif
 
     // 2. Edit menu
     auto *editMenu = bar->addMenu(tr("&Edit"));
 
-    auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, [this] {
+    auto *copyAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kCopy, m_dark), tr("Copy\t⌘C"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->copySelection();
     });
 #ifdef Q_OS_MACOS
@@ -156,7 +231,7 @@ void MainWindow::setupMenuBar() {
     copyAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+C")));  // plain Ctrl+C must reach the shell (SIGINT)
 #endif
 
-    auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, [this] {
+    auto *pasteAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kPaste, m_dark), tr("Paste\t⌘V"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->pasteClipboard();
     });
 #ifdef Q_OS_MACOS
@@ -165,14 +240,14 @@ void MainWindow::setupMenuBar() {
     pasteAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+V")));
 #endif
 
-    auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, [this] {
+    auto *selectAllAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, m_dark), tr("Select All\t⌘A"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->selectAllText();
     });
     selectAllAct->setShortcut(QKeySequence::SelectAll);
 
     editMenu->addSeparator();
 
-    auto *clearAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, [this] {
+    auto *clearAct = editMenu->addAction(MenuStyle::makeIcon(MenuIcons::kClear, m_dark), tr("Clear Terminal\t⌘K"), this, [this] {
         if (m_activePane && m_activePane->view()) m_activePane->view()->clearTerminal();
     });
     clearAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+K")));
@@ -192,7 +267,7 @@ void MainWindow::setupMenuBar() {
     });
     aiAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+G")));
 
-    auto *taskAct = viewMenu->addAction(MenuStyle::makeIcon(MenuIcons::kFlash, true), tr("Run Background Task…\t⌘B"), this, [this] {
+    auto *taskAct = viewMenu->addAction(MenuStyle::makeIcon(MenuIcons::kFlash, m_dark), tr("Run Background Task…\t⌘B"), this, [this] {
         if (m_activePane) m_activePane->toggleTask();
     });
     taskAct->setShortcut(QKeySequence(QStringLiteral("Ctrl+B")));
@@ -231,6 +306,21 @@ void MainWindow::setupMenuBar() {
 
     winMenu->addSeparator();
     winMenu->addAction(tr("Bring All to Front"), this, &QWidget::raise);
+
+#ifdef Q_OS_WIN
+    addActions(shellMenu->actions());
+    addActions(editMenu->actions());
+    addActions(viewMenu->actions());
+    addActions(winMenu->actions());
+
+    chevronMenu->addSeparator();
+    auto *settingsAct = chevronMenu->addAction(MenuStyle::makeIcon(MenuIcons::kSettings, m_dark), tr("Settings…\tCtrl+,"), this, &MainWindow::openSettings);
+    settingsAct->setShortcut(QKeySequence::Preferences);
+    addAction(settingsAct);
+    m_chevronMenu = chevronMenu;
+    MenuStyle::apply(chevronMenu, m_dark);
+    m_tabBar->setAppMenu(chevronMenu);
+#endif
 }
 
 void MainWindow::newWindow(const QString &cwd) {
@@ -327,6 +417,7 @@ void MainWindow::setupShortcuts() {
 
 TerminalPane *MainWindow::createPane(const QString &cwd, QWidget *parent) {
     auto *pane = new TerminalPane(cwd, parent);
+    pane->setDark(m_dark);
     connect(pane, &TerminalPane::activated, this, &MainWindow::setActivePane);
     connect(pane, &TerminalPane::splitRequested, this, [this](TerminalPane *p, bool right) {
         if (p) setActivePane(p);
@@ -510,12 +601,20 @@ bool MainWindow::confirmClose() {
     box.setWindowTitle(tr("Confirm Close"));
     box.setText(tr("Are you sure you want to close this window?"));
     box.setInformativeText(tr("All active terminal sessions in this window will be terminated."));
+    auto *dontAskCheck = new QCheckBox(tr("Never ask again"), &box);
+    box.setCheckBox(dontAskCheck);
     auto *closeBtn = box.addButton(tr("Close Window"), QMessageBox::AcceptRole);
     auto *cancelBtn = box.addButton(QMessageBox::Cancel);
     box.setDefaultButton(closeBtn);
     box.setEscapeButton(cancelBtn);
     box.exec();
-    return box.clickedButton() == closeBtn;
+    const bool confirmed = box.clickedButton() == closeBtn;
+    if (confirmed && dontAskCheck->isChecked()) {
+        QJsonObject patch;
+        patch[QStringLiteral("confirmOnQuit")] = false;
+        CoreBridge::setSettings(QString::fromUtf8(QJsonDocument(patch).toJson(QJsonDocument::Compact)));
+    }
+    return confirmed;
 }
 
 void MainWindow::closeEvent(QCloseEvent *e) {
@@ -692,3 +791,102 @@ void MainWindow::keyPressEvent(QKeyEvent *e) {
 
     QMainWindow::keyPressEvent(e);
 }
+
+void MainWindow::applyTheme(bool dark) {
+    m_dark = dark;
+    MenuStyle::instance()->setProperty("dark", dark);
+    if (m_chevronMenu) {
+        MenuStyle::apply(m_chevronMenu, dark);
+    }
+    const QString centralBorder = isMaximized()
+        ? QStringLiteral("#tpCentral { border: none; }")
+        : (dark
+            ? QStringLiteral("#tpCentral { border: 1px solid #2e323b; }")
+            : QStringLiteral("#tpCentral { border: 1px solid #cbd5e1; }"));
+    setStyleSheet((dark
+        ? QStringLiteral(
+            "QMainWindow { background-color: #000000; }"
+            "QMenuBar { background-color: #111111; color: #dfe1e5; border-bottom: 1px solid #222222; }"
+            "QMenuBar::item { background-color: transparent; padding: 4px 10px; }"
+            "QMenuBar::item:selected { background-color: #2e436e; color: #ffffff; }"
+            "QMenuBar::item:pressed { background-color: #3574f0; color: #ffffff; }"
+            "QSplitter::handle { background-color: #222222; }"
+            "QSplitter::handle:hover { background-color: #38bdf8; }")
+        : QStringLiteral(
+            "QMainWindow { background-color: #ffffff; }"
+            "QMenuBar { background-color: #f3f4f6; color: #0f172a; border-bottom: 1px solid #e2e8f0; }"
+            "QMenuBar::item { background-color: transparent; padding: 4px 10px; }"
+            "QMenuBar::item:selected { background-color: #dbeafe; color: #0f172a; }"
+            "QMenuBar::item:pressed { background-color: #bfdbfe; color: #0f172a; }"
+            "QSplitter::handle { background-color: #e2e8f0; }"
+            "QSplitter::handle:hover { background-color: #0284c7; }")) + centralBorder);
+
+#ifdef Q_OS_WIN
+    applyWindowsTitleBarTheme(this, dark);
+#endif
+    if (m_tabBar) {
+        m_tabBar->setDark(dark);
+    }
+    for (const auto &t : m_tabs) {
+        for (const auto &pane : t.panes) {
+            if (pane) pane->setDark(dark);
+        }
+    }
+}
+
+void MainWindow::changeEvent(QEvent *e) {
+    if (e->type() == QEvent::WindowStateChange && m_tabBar) {
+        m_tabBar->setMaximizedState(isMaximized());
+        applyTheme(m_dark);
+    }
+    QMainWindow::changeEvent(e);
+}
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    if (eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG") {
+        auto *msg = static_cast<MSG *>(message);
+        if (msg->message == WM_NCCALCSIZE && msg->wParam == TRUE) {
+            if (IsZoomed(msg->hwnd)) {
+                auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+                const int fx = GetSystemMetrics(SM_CXSIZEFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+                const int fy = GetSystemMetrics(SM_CYSIZEFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+                params->rgrc[0].left += fx;
+                params->rgrc[0].top += fy;
+                params->rgrc[0].right -= fx;
+                params->rgrc[0].bottom -= fy;
+            }
+            *result = 0;
+            return true;
+        }
+        if (msg->message == WM_NCHITTEST) {
+            RECT rc{};
+            GetWindowRect(msg->hwnd, &rc);
+            const int x = GET_X_LPARAM(msg->lParam);
+            const int y = GET_Y_LPARAM(msg->lParam);
+            const qreal dpr = devicePixelRatioF();
+            if (!IsZoomed(msg->hwnd)) {
+                const int border = qRound(10 * dpr);
+                const bool left = x >= rc.left && x < rc.left + border;
+                const bool right = x < rc.right && x >= rc.right - border;
+                const bool top = y >= rc.top && y < rc.top + border;
+                const bool bottom = y < rc.bottom && y >= rc.bottom - border;
+                if (top && left) { *result = HTTOPLEFT; return true; }
+                if (top && right) { *result = HTTOPRIGHT; return true; }
+                if (bottom && left) { *result = HTBOTTOMLEFT; return true; }
+                if (bottom && right) { *result = HTBOTTOMRIGHT; return true; }
+                if (left) { *result = HTLEFT; return true; }
+                if (right) { *result = HTRIGHT; return true; }
+                if (top) { *result = HTTOP; return true; }
+                if (bottom) { *result = HTBOTTOM; return true; }
+            }
+            const QPoint globalLogical(qRound(x / dpr), qRound(y / dpr));
+            if (m_tabBar && m_tabBar->isCaptionArea(globalLogical)) {
+                *result = HTCAPTION;
+                return true;
+            }
+        }
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif

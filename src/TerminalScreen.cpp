@@ -879,6 +879,19 @@ void TerminalScreen::dispatchOsc() {
     } else if (code == "7") {
         // file://<host>/<path>: the host is ignored, the path is percent-decoded.
         const QUrl url(payload);
-        if (url.isValid() && url.scheme() == QLatin1String("file") && !url.path().isEmpty() && m_onCwd) m_onCwd(url.path());
+        if (url.isValid() && url.scheme() == QLatin1String("file") && !url.path().isEmpty() && m_onCwd) {
+            QString path = url.path();
+#ifdef Q_OS_WIN
+            if (path.size() >= 3 && path.at(0) == QLatin1Char('/') && path.at(1).isLetter() && path.at(2) == QLatin1Char(':')) {
+                path = path.mid(1);
+            } else if (path.size() >= 2 && path.at(0) == QLatin1Char('/') && path.at(1).isLetter()
+                       && (path.size() == 2 || path.at(2) == QLatin1Char('/'))) {
+                path = path.at(1).toUpper() + QStringLiteral(":") + (path.size() > 2 ? path.mid(2) : QStringLiteral("/"));
+            } else if (path.startsWith(QLatin1String("/home/"))) {
+                path = QStringLiteral("C:/msys64") + path;
+            }
+#endif
+            m_onCwd(path);
+        }
     }
 }

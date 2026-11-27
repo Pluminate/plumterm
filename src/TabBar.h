@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
+#include <QMenu>
 #include <QPoint>
 #include <QPushButton>
 #include <QToolButton>
@@ -17,6 +18,7 @@ public:
     QString title() const { return m_title; }
     void setTitle(const QString &title);
     void setActive(bool active);
+    void setDark(bool dark);
     void setCloseable(bool closeable);
     void startRename();
 
@@ -40,6 +42,7 @@ private:
     int m_id = 0;
     QString m_title;
     bool m_active = false;
+    bool m_dark = true;
     bool m_pressing = false;
     bool m_dragging = false;
     QPoint m_dragStartPos;
@@ -65,6 +68,10 @@ public:
     void setTabTitle(int id, const QString &title);
     void startRename(int id);
     void showTabMenu(int id, const QPoint &globalPos);
+    void setAppMenu(QMenu *menu);
+    void setDark(bool dark);
+    void setMaximizedState(bool maximized);
+    bool isCaptionArea(const QPoint &globalPos) const;
 
 signals:
     void currentChanged(int id);
@@ -77,9 +84,14 @@ signals:
     void closeAllTabsRequested();
     void splitRequested(bool right);
     void settingsRequested();
+    void minimizeRequested();
+    void maximizeRestoreRequested();
+    void windowCloseRequested();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *e) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
 
 private:
     void updateTabStyles();
@@ -90,6 +102,11 @@ private:
     QToolButton *m_addBtn = nullptr;
     QToolButton *m_menuBtn = nullptr;
     QToolButton *m_settingsBtn = nullptr;
+    QToolButton *m_minBtn = nullptr;
+    QToolButton *m_maxBtn = nullptr;
+    QToolButton *m_winCloseBtn = nullptr;
+    QMenu *m_appMenu = nullptr;
+    bool m_dark = true;
     int m_nextId = 1;
     int m_activeId = -1;
 };

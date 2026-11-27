@@ -1,18 +1,26 @@
 #include "SearchBar.h"
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include "MenuStyle.h"
 #include "TerminalView.h"
 
 SearchBar::SearchBar(TerminalView *view, QWidget *parent)
     : QFrame(parent), m_view(view) {
     setFixedHeight(30);
-    setStyleSheet(QStringLiteral(
-        "SearchBar { background-color: #111111; border-bottom: 1px solid #222222; padding: 2px 8px; }"
-        "QLineEdit { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 4px; padding: 2px 8px; font-size: 11px; }"
-        "QLineEdit:focus { border-color: #38bdf8; }"
-        "QToolButton { background: transparent; border: none; color: #888888; font-size: 13px; padding: 0 4px; }"
-        "QToolButton:hover { color: #ffffff; }"
-    ));
+    const bool dark = MenuStyle::isDark(this);
+    setStyleSheet(dark
+        ? QStringLiteral(
+            "SearchBar { background-color: #111111; border-bottom: 1px solid #222222; padding: 2px 8px; }"
+            "QLineEdit { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 4px; padding: 2px 8px; font-size: 11px; }"
+            "QLineEdit:focus { border-color: #38bdf8; }"
+            "QToolButton { background: transparent; border: none; color: #888888; font-size: 13px; padding: 0 4px; }"
+            "QToolButton:hover { color: #ffffff; }")
+        : QStringLiteral(
+            "SearchBar { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 2px 8px; }"
+            "QLineEdit { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 8px; font-size: 11px; }"
+            "QLineEdit:focus { border-color: #0284c7; }"
+            "QToolButton { background: transparent; border: none; color: #64748b; font-size: 13px; padding: 0 4px; }"
+            "QToolButton:hover { color: #0f172a; }"));
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 2, 8, 2);

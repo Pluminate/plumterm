@@ -4,11 +4,14 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QStackedLayout>
+#include <QWindow>
 #include "MenuStyle.h"
 
 TabItem::TabItem(int id, const QString &title, QWidget *parent)
     : QFrame(parent), m_id(id), m_title(title) {
-    setFixedHeight(32);
+    setFixedHeight(34);
+    setMinimumWidth(90);
+    setMaximumWidth(220);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
 
@@ -17,7 +20,7 @@ TabItem::TabItem(int id, const QString &title, QWidget *parent)
     layout->setSpacing(8);
 
     m_label = new QLabel(title, this);
-    m_label->setAlignment(Qt::AlignCenter);
+    m_label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     m_label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     layout->addWidget(m_label, 1);
 
@@ -49,19 +52,49 @@ void TabItem::setTitle(const QString &title) {
     m_label->setText(title);
 }
 
+void TabItem::setDark(bool dark) {
+    m_dark = dark;
+    m_edit->setStyleSheet(dark
+        ? QStringLiteral("QLineEdit { background: #111; color: #fff; border: 1px solid #38bdf8; border-radius: 2px; padding: 1px 4px; font-size: 11px; }")
+        : QStringLiteral("QLineEdit { background: #fff; color: #0f172a; border: 1px solid #0284c7; border-radius: 2px; padding: 1px 4px; font-size: 11px; }"));
+    m_closeBtn->setStyleSheet(dark
+        ? QStringLiteral(
+            "QPushButton { background: transparent; border: none; color: #666666; font-size: 14px; font-weight: bold; line-height: 14px; }"
+            "QPushButton:hover { color: #ffffff; background: #333333; border-radius: 8px; }")
+        : QStringLiteral(
+            "QPushButton { background: transparent; border: none; color: #64748b; font-size: 14px; font-weight: bold; line-height: 14px; }"
+            "QPushButton:hover { color: #0f172a; background: #cbd5e1; border-radius: 8px; }"));
+    setActive(m_active);
+}
+
 void TabItem::setActive(bool active) {
     m_active = active;
-    if (active) {
-        setStyleSheet(QStringLiteral(
-            "TabItem { background-color: #000000; border-right: 1px solid #222222; border-bottom: 2px solid #38bdf8; }"
-        ));
-        m_label->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 11px; font-weight: 500;"));
+    if (m_dark) {
+        if (active) {
+            setStyleSheet(QStringLiteral(
+                "TabItem { background-color: #000000; border-right: 1px solid #222222; border-bottom: 2px solid #38bdf8; }"
+            ));
+            m_label->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 11px; font-weight: 500;"));
+        } else {
+            setStyleSheet(QStringLiteral(
+                "TabItem { background-color: #1a1a1a; border-right: 1px solid #222222; border-bottom: 2px solid #1a1a1a; }"
+                "TabItem:hover { background-color: #141414; }"
+            ));
+            m_label->setStyleSheet(QStringLiteral("color: #666666; font-size: 11px; font-weight: 500;"));
+        }
     } else {
-        setStyleSheet(QStringLiteral(
-            "TabItem { background-color: #1a1a1a; border-right: 1px solid #222222; border-bottom: 2px solid #1a1a1a; }"
-            "TabItem:hover { background-color: #141414; }"
-        ));
-        m_label->setStyleSheet(QStringLiteral("color: #666666; font-size: 11px; font-weight: 500;"));
+        if (active) {
+            setStyleSheet(QStringLiteral(
+                "TabItem { background-color: #ffffff; border-right: 1px solid #e2e8f0; border-bottom: 2px solid #0284c7; }"
+            ));
+            m_label->setStyleSheet(QStringLiteral("color: #0f172a; font-size: 11px; font-weight: 500;"));
+        } else {
+            setStyleSheet(QStringLiteral(
+                "TabItem { background-color: #e5e7eb; border-right: 1px solid #e2e8f0; border-bottom: 2px solid #e5e7eb; }"
+                "TabItem:hover { background-color: #eef2f7; }"
+            ));
+            m_label->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px; font-weight: 500;"));
+        }
     }
 }
 
@@ -166,40 +199,79 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
     ));
 
     auto *mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 8, 0);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
     m_tabLayout = new QHBoxLayout();
     m_tabLayout->setContentsMargins(0, 0, 0, 0);
     m_tabLayout->setSpacing(0);
-    mainLayout->addLayout(m_tabLayout, 1);
+    mainLayout->addLayout(m_tabLayout, 0);
 
     m_addBtn = new QToolButton(this);
     m_addBtn->setText(QStringLiteral("+"));
-    m_addBtn->setToolTip(QStringLiteral("New tab (Cmd+T)"));
+    m_addBtn->setToolTip(QStringLiteral("New tab (Ctrl+T)"));
     m_addBtn->setAutoRaise(true);
-    m_addBtn->setFixedSize(28, 28);
+    m_addBtn->setFixedSize(32, 34);
     m_addBtn->setStyleSheet(QStringLiteral(
-        "QToolButton { background: transparent; border: none; color: #64748b; font-size: 18px; font-weight: 300; }"
-        "QToolButton:hover { color: #e2e8f0; }"
+        "QToolButton { background: transparent; border: none; color: #94a3b8; font-size: 17px; font-weight: 300; }"
+        "QToolButton:hover { background: #222222; color: #ffffff; }"
     ));
     connect(m_addBtn, &QToolButton::clicked, this, &TabBar::newTabRequested);
     mainLayout->addWidget(m_addBtn, 0);
 
     m_menuBtn = new QToolButton(this);
-    m_menuBtn->setText(QStringLiteral("⋯"));
-    m_menuBtn->setToolTip(QStringLiteral("Tab menu"));
+    m_menuBtn->setText(QStringLiteral("▾"));
+    m_menuBtn->setToolTip(QStringLiteral("Menu"));
     m_menuBtn->setAutoRaise(true);
-    m_menuBtn->setFixedSize(28, 28);
+    m_menuBtn->setFixedSize(28, 34);
     m_menuBtn->setStyleSheet(QStringLiteral(
-        "QToolButton { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; }"
-        "QToolButton:hover { color: #e2e8f0; }"
+        "QToolButton { background: transparent; border: none; color: #94a3b8; font-size: 12px; }"
+        "QToolButton:hover { background: #222222; color: #ffffff; }"
     ));
     connect(m_menuBtn, &QToolButton::clicked, this, [this] {
-        showTabMenu(m_activeId, m_menuBtn->mapToGlobal(QPoint(0, m_menuBtn->height() + 2)));
+        const QPoint pos = m_menuBtn->mapToGlobal(QPoint(0, m_menuBtn->height()));
+        if (m_appMenu) {
+            m_appMenu->popup(pos);
+        } else {
+            showTabMenu(m_activeId, pos);
+        }
     });
     mainLayout->addWidget(m_menuBtn, 0);
 
+    mainLayout->addStretch(1);
+
+#ifdef Q_OS_WIN
+    const QString winBtnStyle = QStringLiteral(
+        "QToolButton { background: transparent; border: none; color: #cccccc; font-size: 12px; }"
+        "QToolButton:hover { background: #2a2a2a; color: #ffffff; }"
+    );
+    m_minBtn = new QToolButton(this);
+    m_minBtn->setText(QStringLiteral("─"));
+    m_minBtn->setToolTip(QStringLiteral("Minimize"));
+    m_minBtn->setFixedSize(46, 34);
+    m_minBtn->setStyleSheet(winBtnStyle);
+    connect(m_minBtn, &QToolButton::clicked, this, &TabBar::minimizeRequested);
+    mainLayout->addWidget(m_minBtn, 0);
+
+    m_maxBtn = new QToolButton(this);
+    m_maxBtn->setText(QStringLiteral("□"));
+    m_maxBtn->setToolTip(QStringLiteral("Maximize"));
+    m_maxBtn->setFixedSize(46, 34);
+    m_maxBtn->setStyleSheet(winBtnStyle);
+    connect(m_maxBtn, &QToolButton::clicked, this, &TabBar::maximizeRestoreRequested);
+    mainLayout->addWidget(m_maxBtn, 0);
+
+    m_winCloseBtn = new QToolButton(this);
+    m_winCloseBtn->setText(QStringLiteral("×"));
+    m_winCloseBtn->setToolTip(QStringLiteral("Close"));
+    m_winCloseBtn->setFixedSize(46, 34);
+    m_winCloseBtn->setStyleSheet(QStringLiteral(
+        "QToolButton { background: transparent; border: none; color: #cccccc; font-size: 16px; }"
+        "QToolButton:hover { background: #e81123; color: #ffffff; }"
+    ));
+    connect(m_winCloseBtn, &QToolButton::clicked, this, &TabBar::windowCloseRequested);
+    mainLayout->addWidget(m_winCloseBtn, 0);
+#else
     m_settingsBtn = new QToolButton(this);
     m_settingsBtn->setText(QStringLiteral("⚙"));
     m_settingsBtn->setToolTip(QStringLiteral("Settings (Cmd+,)"));
@@ -211,11 +283,13 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
     ));
     connect(m_settingsBtn, &QToolButton::clicked, this, &TabBar::settingsRequested);
     mainLayout->addWidget(m_settingsBtn, 0);
+#endif
 }
 
 int TabBar::addTab(const QString &title) {
     const int id = m_nextId++;
     auto *item = new TabItem(id, title, this);
+    item->setDark(m_dark);
     m_tabs.append(item);
     m_tabLayout->addWidget(item, 1);
 
@@ -227,6 +301,82 @@ int TabBar::addTab(const QString &title) {
     updateTabStyles();
     setActiveTab(id);
     return id;
+}
+
+void TabBar::setAppMenu(QMenu *menu) {
+    m_appMenu = menu;
+}
+
+void TabBar::setDark(bool dark) {
+    m_dark = dark;
+    setStyleSheet(dark
+        ? QStringLiteral("TabBar { background-color: #111111; border-bottom: 1px solid #222222; }")
+        : QStringLiteral("TabBar { background-color: #f3f4f6; border-bottom: 1px solid #e2e8f0; }"));
+
+    const QString actionStyle = dark
+        ? QStringLiteral("QToolButton { background: transparent; border: none; color: #94a3b8; font-size: %1px; font-weight: %2; }"
+                         "QToolButton:hover { background: #222222; color: #ffffff; }")
+        : QStringLiteral("QToolButton { background: transparent; border: none; color: #475569; font-size: %1px; font-weight: %2; }"
+                         "QToolButton:hover { background: #e2e8f0; color: #0f172a; }");
+    if (m_addBtn) m_addBtn->setStyleSheet(actionStyle.arg(17).arg(300));
+    if (m_menuBtn) m_menuBtn->setStyleSheet(actionStyle.arg(12).arg(400));
+
+    if (m_settingsBtn) {
+        m_settingsBtn->setStyleSheet(dark
+            ? QStringLiteral("QToolButton { background: transparent; border: none; color: #64748b; font-size: 15px; } QToolButton:hover { color: #e2e8f0; }")
+            : QStringLiteral("QToolButton { background: transparent; border: none; color: #475569; font-size: 15px; } QToolButton:hover { color: #0f172a; }"));
+    }
+
+    const QString winBtnStyle = dark
+        ? QStringLiteral("QToolButton { background: transparent; border: none; color: #cccccc; font-size: 12px; } QToolButton:hover { background: #2a2a2a; color: #ffffff; }")
+        : QStringLiteral("QToolButton { background: transparent; border: none; color: #334155; font-size: 12px; } QToolButton:hover { background: #e2e8f0; color: #0f172a; }");
+    if (m_minBtn) m_minBtn->setStyleSheet(winBtnStyle);
+    if (m_maxBtn) m_maxBtn->setStyleSheet(winBtnStyle);
+    if (m_winCloseBtn) {
+        m_winCloseBtn->setStyleSheet(dark
+            ? QStringLiteral("QToolButton { background: transparent; border: none; color: #cccccc; font-size: 16px; } QToolButton:hover { background: #e81123; color: #ffffff; }")
+            : QStringLiteral("QToolButton { background: transparent; border: none; color: #334155; font-size: 16px; } QToolButton:hover { background: #e81123; color: #ffffff; }"));
+    }
+
+    for (auto *item : m_tabs) {
+        item->setDark(dark);
+    }
+}
+
+void TabBar::setMaximizedState(bool maximized) {
+    if (!m_maxBtn) return;
+    m_maxBtn->setText(maximized ? QStringLiteral("❐") : QStringLiteral("□"));
+    m_maxBtn->setToolTip(maximized ? QStringLiteral("Restore") : QStringLiteral("Maximize"));
+}
+
+bool TabBar::isCaptionArea(const QPoint &globalPos) const {
+    const QPoint localPos = mapFromGlobal(globalPos);
+    if (!rect().contains(localPos)) return false;
+    QWidget *child = childAt(localPos);
+    return child == nullptr || child == this;
+}
+
+void TabBar::mousePressEvent(QMouseEvent *e) {
+    if (e->button() == Qt::LeftButton && isCaptionArea(e->globalPosition().toPoint())) {
+        if (QWidget *win = window()) {
+            if (QWindow *wh = win->windowHandle()) {
+                if (wh->startSystemMove()) {
+                    e->accept();
+                    return;
+                }
+            }
+        }
+    }
+    QFrame::mousePressEvent(e);
+}
+
+void TabBar::mouseDoubleClickEvent(QMouseEvent *e) {
+    if (e->button() == Qt::LeftButton && isCaptionArea(e->globalPosition().toPoint())) {
+        emit maximizeRestoreRequested();
+        e->accept();
+        return;
+    }
+    QFrame::mouseDoubleClickEvent(e);
 }
 
 void TabBar::removeTab(int id) {
@@ -346,22 +496,22 @@ void TabBar::contextMenuEvent(QContextMenuEvent *e) {
 
 void TabBar::showTabMenu(int id, const QPoint &globalPos) {
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, m_dark);
 
-    auto *newTabAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, true), tr("New Tab\t⌘T"), this, &TabBar::newTabRequested);
+    auto *newTabAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kAdd, m_dark), tr("New Tab\t⌘T"), this, &TabBar::newTabRequested);
     Q_UNUSED(newTabAct);
 
-    auto *newWinAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, true), tr("New Window\t⌘N"), this, &TabBar::newWindowRequested);
+    auto *newWinAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kWindow, m_dark), tr("New Window\t⌘N"), this, &TabBar::newWindowRequested);
     Q_UNUSED(newWinAct);
 
     if (id > 0) {
         menu.addSeparator();
 
-        menu.addAction(MenuStyle::makeIcon(MenuIcons::kRename, true), tr("Rename Tab…"), this, [this, id] {
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kRename, m_dark), tr("Rename Tab…"), this, [this, id] {
             startRename(id);
         });
 
-        menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Duplicate Tab"), this, [this, id] {
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, m_dark), tr("Duplicate Tab"), this, [this, id] {
             emit duplicateTabRequested(id);
         });
     }
@@ -369,7 +519,7 @@ void TabBar::showTabMenu(int id, const QPoint &globalPos) {
     menu.addSeparator();
 
     if (id > 0) {
-        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, true), tr("Close Tab\t⌘W"), this, [this, id] {
+        menu.addAction(MenuStyle::makeIcon(MenuIcons::kClose, m_dark), tr("Close Tab\t⌘W"), this, [this, id] {
             emit tabCloseRequested(id);
         });
 
@@ -383,11 +533,11 @@ void TabBar::showTabMenu(int id, const QPoint &globalPos) {
 
     menu.addSeparator();
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"), this, [this] {
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, m_dark), tr("Split Right\t⌘⇧R"), this, [this] {
         emit splitRequested(true);
     });
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"), this, [this] {
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, m_dark), tr("Split Down\t⌘⇧D"), this, [this] {
         emit splitRequested(false);
     });
 

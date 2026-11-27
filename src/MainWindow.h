@@ -35,6 +35,10 @@ public:
 protected:
     void keyPressEvent(QKeyEvent *e) override;
     void closeEvent(QCloseEvent *e) override;
+    void changeEvent(QEvent *e) override;
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
 
 private:
     struct TabInfo {
@@ -51,9 +55,12 @@ private:
     TabInfo *tabInfoForId(int id);
     void setupShortcuts();
     void setupMenuBar();
+    void applyTheme(bool dark);
 
     TabBar *m_tabBar = nullptr;
     QStackedWidget *m_stack = nullptr;
     QList<TabInfo> m_tabs;
     QPointer<TerminalPane> m_activePane;
+    QPointer<QMenu> m_chevronMenu;
+    bool m_dark = true;
 };

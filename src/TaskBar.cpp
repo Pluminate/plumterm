@@ -6,20 +6,30 @@
 #include <QToolTip>
 #include <algorithm>
 #include <QLabel>
+#include "MenuStyle.h"
 #include "TerminalView.h"
 
 TaskBar::TaskBar(TerminalView *view, QWidget *parent)
     : QFrame(parent), m_view(view) {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
-    setStyleSheet(QStringLiteral(
-        "TaskBar { background-color: #111111; border-bottom: 1px solid #222222; }"
-        "QLineEdit { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-size: 12px; }"
-        "QLineEdit:focus { border-color: #38bdf8; }"
-        "QPushButton { background-color: #2563eb; color: #ffffff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 500; }"
-        "QPushButton:hover { background-color: #1d4ed8; }"
-        "QToolButton#taskCloseBtn { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; border-radius: 3px; }"
-        "QToolButton#taskCloseBtn:hover { color: #f8fafc; background-color: #222222; }"
-    ));
+    const bool dark = MenuStyle::isDark(this);
+    setStyleSheet(dark
+        ? QStringLiteral(
+            "TaskBar { background-color: #111111; border-bottom: 1px solid #222222; }"
+            "QLineEdit { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-size: 12px; }"
+            "QLineEdit:focus { border-color: #38bdf8; }"
+            "QPushButton { background-color: #2563eb; color: #ffffff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 500; }"
+            "QPushButton:hover { background-color: #1d4ed8; }"
+            "QToolButton#taskCloseBtn { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; border-radius: 3px; }"
+            "QToolButton#taskCloseBtn:hover { color: #f8fafc; background-color: #222222; }")
+        : QStringLiteral(
+            "TaskBar { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; }"
+            "QLineEdit { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 10px; font-size: 12px; }"
+            "QLineEdit:focus { border-color: #0284c7; }"
+            "QPushButton { background-color: #2563eb; color: #ffffff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 500; }"
+            "QPushButton:hover { background-color: #1d4ed8; }"
+            "QToolButton#taskCloseBtn { background: transparent; border: none; color: #64748b; font-size: 16px; font-weight: bold; border-radius: 3px; }"
+            "QToolButton#taskCloseBtn:hover { color: #0f172a; background-color: #e2e8f0; }"));
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 6, 10, 6);

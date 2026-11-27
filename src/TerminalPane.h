@@ -23,6 +23,7 @@ public:
     QString currentDirectory() const;
 
     void setActive(bool active);
+    void setDark(bool dark);
     bool isActive() const { return m_isActive; }
 
     void runLastCommand();

@@ -58,7 +58,13 @@ TerminalView::TerminalView(bool dark, QWidget *parent) : QWidget(parent), m_dark
     setCursor(Qt::IBeamCursor);
     setAcceptDrops(true);
 
-    m_font = QFont(QStringLiteral("Menlo"));
+#ifdef Q_OS_MACOS
+    m_font.setFamilies({QStringLiteral("Menlo"), QStringLiteral("SF Mono"), QStringLiteral("Monaco")});
+#elif defined(Q_OS_WIN)
+    m_font.setFamilies({QStringLiteral("Cascadia Mono"), QStringLiteral("Cascadia Code"), QStringLiteral("Consolas"), QStringLiteral("Courier New")});
+#else
+    m_font.setFamilies({QStringLiteral("JetBrains Mono"), QStringLiteral("Ubuntu Mono"), QStringLiteral("DejaVu Sans Mono"), QStringLiteral("Monospace")});
+#endif
     m_font.setStyleHint(QFont::Monospace);
     m_font.setFixedPitch(true);
     m_font.setPixelSize(13);
@@ -66,7 +72,10 @@ TerminalView::TerminalView(bool dark, QWidget *parent) : QWidget(parent), m_dark
 
     m_screen.setReplyCallback([this](const QByteArray &reply) { sendInput(reply); });
     m_screen.setTitleCallback([this](const QString &t) { emit titleChanged(t); });
-    m_screen.setCwdCallback([this](const QString &c) { emit cwdChanged(c); });
+    m_screen.setCwdCallback([this](const QString &c) {
+        m_oscCwd = c;
+        emit cwdChanged(c);
+    });
     m_screen.setBellCallback([this] {
         emit bell();
         if (m_beepOnBell) QApplication::beep();
@@ -167,7 +176,14 @@ void TerminalView::sendInput(const QByteArray &bytes) {
     if (m_pty && !bytes.isEmpty()) tp_pty_write(m_pty, reinterpret_cast<const uint8_t *>(bytes.constData()), size_t(bytes.size()));
 }
 
-QString TerminalView::currentDirectory() const { return m_pty ? CoreBridge::ptyCwd(m_pty) : QString(); }
+QString TerminalView::currentDirectory() const {
+    if (!m_oscCwd.isEmpty()) return m_oscCwd;
+    if (m_pty) {
+        const QString c = CoreBridge::ptyCwd(m_pty);
+        if (!c.isEmpty()) return c;
+    }
+    return m_pendingCwd;
+}
 
 void TerminalView::feedOutput(const QByteArray &bytes) {
     const int oldSb = m_screen.scrollbackCount();
@@ -603,6 +619,20 @@ void TerminalView::keyPressEvent(QKeyEvent *e) {
     }
 
     const Qt::KeyboardModifiers mods = e->modifiers();
+#ifndef Q_OS_MACOS
+    if ((mods & Qt::ControlModifier) && !(mods & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier))) {
+        if (e->key() == Qt::Key_C && m_hasSelection) {
+            copySelection();
+            e->accept();
+            return;
+        }
+        if (e->key() == Qt::Key_V) {
+            pasteClipboard();
+            e->accept();
+            return;
+        }
+    }
+#endif
 #ifdef Q_OS_MACOS
     const bool cmd = (mods & Qt::ControlModifier) != 0;
 #else
@@ -809,25 +839,25 @@ void TerminalView::contextMenuEvent(QContextMenuEvent *e) {
     emit activated();
 
     QMenu menu(this);
-    MenuStyle::apply(&menu, true);
+    MenuStyle::apply(&menu, m_dark);
 
-    auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, true), tr("Copy\t⌘C"), this, &TerminalView::copySelection);
+    auto *copyAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kCopy, m_dark), tr("Copy\t⌘C"), this, &TerminalView::copySelection);
     copyAct->setEnabled(m_hasSelection);
 
-    auto *pasteAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, true), tr("Paste\t⌘V"), this, &TerminalView::pasteClipboard);
+    auto *pasteAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kPaste, m_dark), tr("Paste\t⌘V"), this, &TerminalView::pasteClipboard);
     pasteAct->setEnabled(!QApplication::clipboard()->text().isEmpty());
 
     menu.addSeparator();
 
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, true), tr("Select All\t⌘A"), this, &TerminalView::selectAllText);
-    menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, true), tr("Clear Terminal\t⌘K"), this, &TerminalView::clearTerminal);
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kSelectAll, m_dark), tr("Select All\t⌘A"), this, &TerminalView::selectAllText);
+    menu.addAction(MenuStyle::makeIcon(MenuIcons::kClear, m_dark), tr("Clear Terminal\t⌘K"), this, &TerminalView::clearTerminal);
 
     menu.addSeparator();
 
-    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, true), tr("Split Right\t⌘⇧R"));
+    auto *splitRightAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitRight, m_dark), tr("Split Right\t⌘⇧R"));
     connect(splitRightAct, &QAction::triggered, this, [this] { emit splitRequested(true); });
 
-    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, true), tr("Split Down\t⌘⇧D"));
+    auto *splitDownAct = menu.addAction(MenuStyle::makeIcon(MenuIcons::kSplitDown, m_dark), tr("Split Down\t⌘⇧D"));
     connect(splitDownAct, &QAction::triggered, this, [this] { emit splitRequested(false); });
 
     menu.exec(e->globalPos());

@@ -11,6 +11,13 @@
 #include "TerminalView.h"
 
 int main(int argc, char **argv) {
+#ifdef Q_OS_WIN
+    // Qt 6.8's modernwindows style crashes in QObject::inherits when combined
+    // with QStyleSheetStyle and MenuStyle's QProxyStyle; prevent loading it.
+    if (qEnvironmentVariableIsEmpty("QT_STYLE_OVERRIDE")) {
+        qputenv("QT_STYLE_OVERRIDE", "Fusion");
+    }
+#endif
     QApplication app(argc, argv);
     QApplication::setApplicationName("PlumTerm");
     MenuStyle::installGlobalHook();
@@ -26,7 +33,10 @@ int main(int argc, char **argv) {
 
     auto *w = new MainWindow();
     w->setAttribute(Qt::WA_DeleteOnClose);
-    const QString initCwd = args.size() > 1 ? args.at(1) : QDir::currentPath();
+    QString initCwd = args.size() > 1 ? args.at(1) : QDir::currentPath();
+    if (args.size() <= 1 && QDir::cleanPath(initCwd).compare(QDir::cleanPath(QCoreApplication::applicationDirPath()), Qt::CaseInsensitive) == 0) {
+        initCwd = QDir::homePath();
+    }
     if (!w->restoreSession()) {
         w->newTab(initCwd);
     }

@@ -102,6 +102,7 @@ private:
     QTimer m_blinkTimer;
 
     QString m_pendingCwd;
+    QString m_oscCwd;
     bool m_startRequested = false;
     uint64_t m_pty = 0;
     Ctx *m_ctx = nullptr;

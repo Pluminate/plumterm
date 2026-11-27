@@ -200,10 +200,11 @@ void MenuStyle::apply(QMenu *menu, std::optional<bool> dark) {
         menu->setProperty("_menuStyleInstalled", true);
         menu->installEventFilter(new MenuChildFilter(menu, dark));
 
-        QObject::connect(menu, &QMenu::aboutToShow, menu, [menu, dark] {
+        QObject::connect(menu, &QMenu::aboutToShow, menu, [menu] {
+            const bool curDark = MenuStyle::isDark(menu);
             for (QAction *a : menu->actions()) {
                 if (QMenu *sub = a->menu()) {
-                    apply(sub, dark);
+                    apply(sub, curDark);
                 }
             }
         });

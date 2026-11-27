@@ -19,6 +19,7 @@ public:
     explicit PaneHeader(TerminalView *view, QWidget *parent = nullptr);
 
     void setActive(bool active);
+    void setDark(bool dark);
     void updateStatus();
     void setTaskStatus(bool running, const QString &command, int exitCode = 0);
 
@@ -63,5 +64,6 @@ private:
     QString m_lastCwd;
     QString m_lastBranch;
     bool m_isActive = false;
+    bool m_dark = true;
     bool m_polling = false;
 };
