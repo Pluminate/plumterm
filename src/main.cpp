@@ -34,7 +34,9 @@ int main(int argc, char **argv) {
     auto *w = new MainWindow();
     w->setAttribute(Qt::WA_DeleteOnClose);
     QString initCwd = args.size() > 1 ? args.at(1) : QDir::currentPath();
-    if (args.size() <= 1 && QDir::cleanPath(initCwd).compare(QDir::cleanPath(QCoreApplication::applicationDirPath()), Qt::CaseInsensitive) == 0) {
+    if (args.size() <= 1
+        && (initCwd == QLatin1String("/")
+            || QDir::cleanPath(initCwd).compare(QDir::cleanPath(QCoreApplication::applicationDirPath()), Qt::CaseInsensitive) == 0)) {
         initCwd = QDir::homePath();
     }
     if (!w->restoreSession()) {

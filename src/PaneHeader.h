@@ -40,6 +40,7 @@ protected:
     void enterEvent(QEnterEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
+    bool eventFilter(QObject *obj, QEvent *ev) override;
 
 private:
     void updateResizeCursor();
@@ -61,6 +62,8 @@ private:
     QToolButton *m_runBtn = nullptr;
 
     QTimer m_pollTimer;
+    QTimer m_taskDismissTimer;   // auto-hides a finished task indicator
+    bool m_taskFinished = false;
     QString m_lastCwd;
     QString m_lastBranch;
     bool m_isActive = false;
