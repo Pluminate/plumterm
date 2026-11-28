@@ -36,6 +36,9 @@ protected:
     void keyPressEvent(QKeyEvent *e) override;
     void closeEvent(QCloseEvent *e) override;
     void changeEvent(QEvent *e) override;
+#ifdef Q_OS_MACOS
+    void showEvent(QShowEvent *e) override;
+#endif
 #ifdef Q_OS_WIN
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 #endif

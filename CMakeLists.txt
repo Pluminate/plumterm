@@ -52,7 +52,7 @@ set(TP_SOURCES
 
 # Global show/hide hotkey backend.
 if(APPLE)
-  list(APPEND TP_SOURCES src/GlobalHotkey_mac.mm)
+  list(APPEND TP_SOURCES src/GlobalHotkey_mac.mm src/MacWindow_mac.mm)
   set(TP_HOTKEY_LIBS "-framework Carbon" "-framework AppKit")
 elseif(UNIX)
   find_package(X11)

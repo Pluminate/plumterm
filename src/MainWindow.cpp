@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 #include "CoreBridge.h"
 #include "GlobalHotkey.h"
+#include "MacWindow.h"
 #include "MenuStyle.h"
 #include "SettingsDialog.h"
 #include "TabBar.h"
@@ -798,11 +799,15 @@ void MainWindow::applyTheme(bool dark) {
     if (m_chevronMenu) {
         MenuStyle::apply(m_chevronMenu, dark);
     }
+#ifdef Q_OS_WIN
     const QString centralBorder = isMaximized()
         ? QStringLiteral("#tpCentral { border: none; }")
         : (dark
             ? QStringLiteral("#tpCentral { border: 1px solid #2e323b; }")
             : QStringLiteral("#tpCentral { border: 1px solid #cbd5e1; }"));
+#else
+    const QString centralBorder = QStringLiteral("#tpCentral { border: none; }");
+#endif
     setStyleSheet((dark
         ? QStringLiteral(
             "QMainWindow { background-color: #000000; }"
@@ -823,6 +828,10 @@ void MainWindow::applyTheme(bool dark) {
 
 #ifdef Q_OS_WIN
     applyWindowsTitleBarTheme(this, dark);
+#elif defined(Q_OS_MACOS)
+    if (testAttribute(Qt::WA_WState_Created)) {
+        applyMacTitleBar(this, dark);
+    }
 #endif
     if (m_tabBar) {
         m_tabBar->setDark(dark);
@@ -837,10 +846,23 @@ void MainWindow::applyTheme(bool dark) {
 void MainWindow::changeEvent(QEvent *e) {
     if (e->type() == QEvent::WindowStateChange && m_tabBar) {
         m_tabBar->setMaximizedState(isMaximized());
+#ifdef Q_OS_MACOS
+        m_tabBar->setTitleBarInset(isFullScreen() ? 0 : 78);
+#endif
         applyTheme(m_dark);
     }
     QMainWindow::changeEvent(e);
 }
+
+#ifdef Q_OS_MACOS
+void MainWindow::showEvent(QShowEvent *e) {
+    QMainWindow::showEvent(e);
+    applyMacTitleBar(this, m_dark);
+    if (m_tabBar) {
+        m_tabBar->setTitleBarInset(isFullScreen() ? 0 : 78);
+    }
+}
+#endif
 
 #ifdef Q_OS_WIN
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {

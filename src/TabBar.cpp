@@ -198,14 +198,18 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
         "TabBar { background-color: #111111; border-bottom: 1px solid #222222; }"
     ));
 
-    auto *mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
+    m_mainLayout = new QHBoxLayout(this);
+#ifdef Q_OS_MACOS
+    m_mainLayout->setContentsMargins(78, 0, 6, 0);
+#else
+    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+#endif
+    m_mainLayout->setSpacing(0);
 
     m_tabLayout = new QHBoxLayout();
     m_tabLayout->setContentsMargins(0, 0, 0, 0);
     m_tabLayout->setSpacing(0);
-    mainLayout->addLayout(m_tabLayout, 0);
+    m_mainLayout->addLayout(m_tabLayout, 0);
 
     m_addBtn = new QToolButton(this);
     m_addBtn->setText(QStringLiteral("+"));
@@ -217,7 +221,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
         "QToolButton:hover { background: #222222; color: #ffffff; }"
     ));
     connect(m_addBtn, &QToolButton::clicked, this, &TabBar::newTabRequested);
-    mainLayout->addWidget(m_addBtn, 0);
+    m_mainLayout->addWidget(m_addBtn, 0);
 
     m_menuBtn = new QToolButton(this);
     m_menuBtn->setText(QStringLiteral("▾"));
@@ -236,9 +240,9 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
             showTabMenu(m_activeId, pos);
         }
     });
-    mainLayout->addWidget(m_menuBtn, 0);
+    m_mainLayout->addWidget(m_menuBtn, 0);
 
-    mainLayout->addStretch(1);
+    m_mainLayout->addStretch(1);
 
 #ifdef Q_OS_WIN
     const QString winBtnStyle = QStringLiteral(
@@ -251,7 +255,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
     m_minBtn->setFixedSize(46, 34);
     m_minBtn->setStyleSheet(winBtnStyle);
     connect(m_minBtn, &QToolButton::clicked, this, &TabBar::minimizeRequested);
-    mainLayout->addWidget(m_minBtn, 0);
+    m_mainLayout->addWidget(m_minBtn, 0);
 
     m_maxBtn = new QToolButton(this);
     m_maxBtn->setText(QStringLiteral("□"));
@@ -259,7 +263,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
     m_maxBtn->setFixedSize(46, 34);
     m_maxBtn->setStyleSheet(winBtnStyle);
     connect(m_maxBtn, &QToolButton::clicked, this, &TabBar::maximizeRestoreRequested);
-    mainLayout->addWidget(m_maxBtn, 0);
+    m_mainLayout->addWidget(m_maxBtn, 0);
 
     m_winCloseBtn = new QToolButton(this);
     m_winCloseBtn->setText(QStringLiteral("×"));
@@ -270,7 +274,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
         "QToolButton:hover { background: #e81123; color: #ffffff; }"
     ));
     connect(m_winCloseBtn, &QToolButton::clicked, this, &TabBar::windowCloseRequested);
-    mainLayout->addWidget(m_winCloseBtn, 0);
+    m_mainLayout->addWidget(m_winCloseBtn, 0);
 #else
     m_settingsBtn = new QToolButton(this);
     m_settingsBtn->setText(QStringLiteral("⚙"));
@@ -282,7 +286,7 @@ TabBar::TabBar(QWidget *parent) : QFrame(parent) {
         "QToolButton:hover { color: #e2e8f0; }"
     ));
     connect(m_settingsBtn, &QToolButton::clicked, this, &TabBar::settingsRequested);
-    mainLayout->addWidget(m_settingsBtn, 0);
+    m_mainLayout->addWidget(m_settingsBtn, 0);
 #endif
 }
 
@@ -347,6 +351,12 @@ void TabBar::setMaximizedState(bool maximized) {
     if (!m_maxBtn) return;
     m_maxBtn->setText(maximized ? QStringLiteral("❐") : QStringLiteral("□"));
     m_maxBtn->setToolTip(maximized ? QStringLiteral("Restore") : QStringLiteral("Maximize"));
+}
+
+void TabBar::setTitleBarInset(int leftPx) {
+    if (!m_mainLayout) return;
+    const QMargins m = m_mainLayout->contentsMargins();
+    m_mainLayout->setContentsMargins(leftPx, m.top(), m.right(), m.bottom());
 }
 
 bool TabBar::isCaptionArea(const QPoint &globalPos) const {

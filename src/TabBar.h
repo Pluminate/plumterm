@@ -71,6 +71,7 @@ public:
     void setAppMenu(QMenu *menu);
     void setDark(bool dark);
     void setMaximizedState(bool maximized);
+    void setTitleBarInset(int leftPx);
     bool isCaptionArea(const QPoint &globalPos) const;
 
 signals:
@@ -97,6 +98,7 @@ private:
     void updateTabStyles();
     void handleTabDrag(int id, const QPoint &globalPos);
 
+    QHBoxLayout *m_mainLayout = nullptr;
     QHBoxLayout *m_tabLayout = nullptr;
     QList<TabItem *> m_tabs;
     QToolButton *m_addBtn = nullptr;
